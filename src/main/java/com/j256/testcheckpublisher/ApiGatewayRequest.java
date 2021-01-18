@@ -48,9 +48,9 @@ public class ApiGatewayRequest {
 	 * Request context.
 	 */
 	public static class RequestContext {
-		String domainName;
-		String requestId;
-		HttpContext http;
+		private String domainName;
+		private String requestId;
+		private HttpContext http;
 
 		public String getDomainName() {
 			return domainName;
@@ -70,10 +70,10 @@ public class ApiGatewayRequest {
 	 */
 	public static class HttpContext {
 
-		String method;
-		String path;
-		String sourceIp;
-		String userAgent;
+		private String method;
+		private String path;
+		private String sourceIp;
+		private String userAgent;
 
 		public String getMethod() {
 			return method;

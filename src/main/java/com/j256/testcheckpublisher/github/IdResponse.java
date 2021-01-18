@@ -7,7 +7,7 @@ package com.j256.testcheckpublisher.github;
  */
 public class IdResponse {
 
-	int id;
+	private int id;
 
 	public int getId() {
 		return id;

@@ -25,8 +25,8 @@ import com.j256.testcheckpublisher.github.CheckRunRequest;
 import com.j256.testcheckpublisher.github.CommitInfoResponse;
 import com.j256.testcheckpublisher.github.IdResponse;
 import com.j256.testcheckpublisher.github.InstallationInfo;
-import com.j256.testcheckpublisher.github.TreeFile;
 import com.j256.testcheckpublisher.github.TreeInfoResponse;
+import com.j256.testcheckpublisher.github.TreeInfoResponse.TreeFile;
 
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;

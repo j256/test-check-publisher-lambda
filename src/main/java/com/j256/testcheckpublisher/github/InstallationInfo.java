@@ -7,8 +7,8 @@ package com.j256.testcheckpublisher.github;
  */
 public class InstallationInfo {
 
-	int id;
-	InstallationInfoAccount account;
+	private int id;
+	private InstallationInfoAccount account;
 
 	public int getId() {
 		return id;

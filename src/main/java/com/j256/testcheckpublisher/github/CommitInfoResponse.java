@@ -2,9 +2,9 @@ package com.j256.testcheckpublisher.github;
 
 public class CommitInfoResponse {
 
-	String sha;
-	Commit commit;
-	ChangedFile[] files;
+	private String sha;
+	private Commit commit;
+	private ChangedFile[] files;
 
 	public String getSha() {
 		return sha;

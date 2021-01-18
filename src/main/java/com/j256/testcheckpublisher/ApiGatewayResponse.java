@@ -11,8 +11,8 @@ import com.google.gson.annotations.SerializedName;
  */
 public class ApiGatewayResponse {
 
-	int statusCode;
-	String[] cookies;
+	private int statusCode;
+	private String[] cookies;
 	// "Content-Type": "application/json"
 	private Map<String, String> headers;
 	private String body;

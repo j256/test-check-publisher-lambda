@@ -9,10 +9,10 @@ import java.io.File;
  */
 public class FileInfo {
 
-	final String path;
-	final String name;
-	final String sha;
-	boolean inCommit;
+	private final String path;
+	private final String name;
+	private final String sha;
+	private boolean inCommit;
 
 	public FileInfo(String path, String sha) {
 		this.path = path;

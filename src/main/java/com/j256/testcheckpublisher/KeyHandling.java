@@ -35,6 +35,7 @@ public class KeyHandling {
 			keyDataString = keyDataString.replace(PKCS_1_PEM_HEADER, "");
 			keyDataString = keyDataString.replace(PKCS_1_PEM_FOOTER, "");
 			keyDataString = keyDataString.replace(System.lineSeparator(), "");
+			keyDataString = keyDataString.replace(System.lineSeparator(), " ");
 			return readPkcs1PrivateKey(Base64.getDecoder().decode(keyDataString));
 		}
 
@@ -43,6 +44,7 @@ public class KeyHandling {
 			keyDataString = keyDataString.replace(PKCS_8_PEM_HEADER, "");
 			keyDataString = keyDataString.replace(PKCS_8_PEM_FOOTER, "");
 			keyDataString = keyDataString.replace(System.lineSeparator(), "");
+			keyDataString = keyDataString.replace(System.lineSeparator(), " ");
 			return readPkcs8PrivateKey(Base64.getDecoder().decode(keyDataString));
 		}
 

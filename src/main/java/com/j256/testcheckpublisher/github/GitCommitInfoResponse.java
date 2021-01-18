@@ -2,9 +2,9 @@ package com.j256.testcheckpublisher.github;
 
 public class GitCommitInfoResponse {
 
-	String sha;
-	Tree tree;
-	ChangedFile[] files;
+	private String sha;
+	private Tree tree;
+	private ChangedFile[] files;
 
 	public String getSha() {
 		return sha;
@@ -12,6 +12,10 @@ public class GitCommitInfoResponse {
 
 	public Tree getTree() {
 		return tree;
+	}
+
+	public ChangedFile[] getFiles() {
+		return files;
 	}
 
 	public static class Tree {
