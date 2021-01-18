@@ -16,12 +16,14 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 
+import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.j256.testcheckpublisher.github.AccessTokenRequest;
 import com.j256.testcheckpublisher.github.AccessTokensResponse;
 import com.j256.testcheckpublisher.github.CheckRunRequest;
 import com.j256.testcheckpublisher.github.CommitInfoResponse;
+import com.j256.testcheckpublisher.github.IdResponse;
 import com.j256.testcheckpublisher.github.InstallationInfo;
 import com.j256.testcheckpublisher.github.TreeFile;
 import com.j256.testcheckpublisher.github.TreeInfoResponse;
@@ -46,17 +48,20 @@ public class GithubClient {
 	private final String repository;
 	private final PrivateKey applicationKey;
 	private final String jwtIssuer;
+	private final LambdaLogger logger;
 
 	private final Gson gson = new Gson();
 	private int installationId;
 	private String bearerToken;
 	private String accessToken;
 
-	public GithubClient(CloseableHttpClient httpclient, String owner, String repository, PrivateKey applicationKey) {
+	public GithubClient(CloseableHttpClient httpclient, String owner, String repository, PrivateKey applicationKey,
+			LambdaLogger logger) {
 		this.httpclient = httpclient;
 		this.owner = owner;
 		this.repository = repository;
 		this.applicationKey = applicationKey;
+		this.logger = logger;
 
 		this.jwtIssuer = System.getenv(JWT_ISSUER_ENV_NAME);
 		if (jwtIssuer == null) {
@@ -73,14 +78,43 @@ public class GithubClient {
 		// XXX:need to cache this
 		// XXX: need to handle paging and request 100 per
 
+		HttpGet get = new HttpGet("https://api.github.com/repos/" + owner + "/" + repository + "/installation");
+		get.addHeader("Authorization", "Bearer " + getBearerToken());
+		get.addHeader("Accept", "application/vnd.github.v3+json");
+		try (CloseableHttpResponse response = httpclient.execute(get)) {
+
+			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+				logger.log(repository + ": installation request failed: " + response.getStatusLine() + "\n");
+				return 0;
+			}
+
+			IdResponse idResponse =
+					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), IdResponse.class);
+			return idResponse.getId();
+		}
+	}
+
+	public int findInstallationIds() throws IOException {
+
+		if (installationId != 0) {
+			return installationId;
+		}
+
+		// XXX:need to cache this
+		// XXX: need to handle paging and request 100 per
+
 		HttpGet get = new HttpGet("https://api.github.com/app/installations");
 		get.addHeader("Authorization", "Bearer " + getBearerToken());
 		get.addHeader("Accept", "application/vnd.github.v3+json");
 		try (CloseableHttpResponse response = httpclient.execute(get)) {
 
+			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+				logger.log(repository + ": installations request failed: " + response.getStatusLine() + "\n");
+				return 0;
+			}
+
 			InstallationInfo[] installations =
 					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), InstallationInfo[].class);
-			// System.out.println("Installations: " + Arrays.toString(result));
 
 			for (InstallationInfo installation : installations) {
 				if (owner.equals(installation.getAccount().getLogin())) {
@@ -109,6 +143,7 @@ public class GithubClient {
 			if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
 				return gson.fromJson(contentReader, CommitInfoResponse.class);
 			} else {
+				logger.log(repository + ": commit-info request failed: " + response.getStatusLine() + "\n");
 				return null;
 			}
 		}
@@ -131,6 +166,7 @@ public class GithubClient {
 
 			// did the request work?
 			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+				logger.log(repository + ": tree request failed: " + response.getStatusLine() + "\n");
 				return null;
 			}
 
@@ -159,9 +195,12 @@ public class GithubClient {
 		post.setEntity(new StringEntity(gson.toJson(request)));
 
 		try (CloseableHttpResponse response = httpclient.execute(post)) {
-			// String str = IoUtils.inputStreamToString(response.getEntity().getContent());
-			// IdResponse idResponse = gson.fromJson(str, IdResponse.class);
-			return (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK);
+			if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+				return true;
+			} else {
+				logger.log(repository + ": check-runs request failed: " + response.getStatusLine() + "\n");
+				return false;
+			}
 		}
 	}
 

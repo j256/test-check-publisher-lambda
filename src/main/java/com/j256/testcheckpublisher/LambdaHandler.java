@@ -5,17 +5,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.http.HttpStatus;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
@@ -23,6 +28,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.j256.testcheckpublisher.frameworks.FrameworkTestResults;
 import com.j256.testcheckpublisher.frameworks.FrameworkTestResults.TestFileResult;
 import com.j256.testcheckpublisher.github.CheckRunRequest;
@@ -59,21 +65,55 @@ public class LambdaHandler implements RequestStreamHandler {
 		// read in request of files, sha, repo, secret
 
 		InputStreamReader reader = new InputStreamReader(inputStream);
-		PublishedTestResults results = new Gson().fromJson(reader, PublishedTestResults.class);
-		if (results.isMagicCorrect()) {
-			throw new IllegalStateException("posted request is invalid");
+		Gson gson = new GsonBuilder().create();
+
+		// PublishedTestResults results = new Gson().fromJson(reader, PublishedTestResults.class);
+		ApiGatewayRequest request = gson.fromJson(reader, ApiGatewayRequest.class);
+		String body = request.getBody();
+
+		// the body is probably base64 encoded because it is json payload
+		if (request.isBodyBase64Encoded()) {
+			body = new String(Base64.decodeBase64(body));
 		}
 
-		logger.log(results.getOwner() + "/" + results.getRepository() + "@" + results.getCommitSha() + "\n");
+		PublishedTestResults results = gson.fromJson(body, PublishedTestResults.class);
+		if (!results.isMagicCorrect()) {
+			// request sanity check failed
+			logger.log("request sanity check failed: " + results.getMagic() + "\n");
+			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "Posted request is invalid");
+			return;
+		}
+		String repository = results.getRepository();
+
+		logger.log(results.getOwner() + "/" + repository + "@" + results.getCommitSha() + "\n");
 
 		CloseableHttpClient httpclient = HttpClients.createDefault();
 
-		GithubClient github =
-				new GithubClient(httpclient, results.getOwner(), results.getRepository(), getApplicationKey());
+		GithubClient github = new GithubClient(httpclient, results.getOwner(), repository, getApplicationKey(), logger);
 
-		validateSecret(outputStream, results.getSecret(), github);
+		int installationId = github.findInstallationId();
+		if (installationId <= 0) {
+			logger.log(repository + ": no installation-id\n");
+			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND,
+					"Could not find installation for application in repository " + repository
+							+ ", reinstall integration");
+			return;
+		}
+
+		if (!validateSecret(outputStream, results.getSecret(), installationId)) {
+			logger.log(repository + ": secret did not validate\n");
+			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN,
+					"Secret did not validate, reinstall integration");
+			return;
+		}
 
 		CommitInfoResponse commitInfo = github.requestCommitInfo(results.getCommitSha());
+		if (commitInfo == null) {
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR,
+					"Could not lookup commit information");
+			return;
+		}
+
 		Set<String> commitPathSet = new HashSet<>();
 		if (commitInfo.getFiles() != null) {
 			for (ChangedFile file : commitInfo.getFiles()) {
@@ -91,17 +131,31 @@ public class LambdaHandler implements RequestStreamHandler {
 			}
 		}
 
-		CheckRunOutput output =
-				createRequest(results.getOwner(), results.getRepository(), results.getCommitSha(), fileInfos);
-		CheckRunRequest request = new CheckRunRequest(results.getResults().getName(), results.getCommitSha(), output);
+		CheckRunOutput output = createRequest(results, fileInfos);
+		CheckRunRequest checkRunRequest =
+				new CheckRunRequest(results.getResults().getName(), results.getCommitSha(), output);
 
-		github.addCheckRun(request);
+		github.addCheckRun(checkRunRequest);
 
-		outputStream.write(("{ \"response\" : \"check-run posted to github\" }").getBytes());
+		logger.log(repository + ": posted check-run " + output.getTitle() + "\n");
+		writeResponse(outputStream, gson, HttpStatus.SC_OK, "check-run posted to github");
 	}
 
-	private CheckRunOutput createRequest(String owner, String repository, String commitSha,
-			Collection<FileInfo> fileInfos) {
+	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, String message)
+			throws IOException {
+		Map<String, String> headerMap = Collections.singletonMap("Content-Type", "text/plain");
+		ApiGatewayResponse response =
+				new ApiGatewayResponse(HttpStatus.SC_OK, null, headerMap, "check-run posted to github", false);
+		try (Writer writer = new OutputStreamWriter(outputStream);) {
+			gson.toJson(response, writer);
+		}
+	}
+
+	private CheckRunOutput createRequest(PublishedTestResults results, Collection<FileInfo> fileInfos) {
+
+		String owner = results.getOwner();
+		String repository = results.getRepository();
+		String commitSha = results.getCommitSha();
 
 		CheckRunOutput output = new CheckRunOutput();
 
@@ -129,16 +183,17 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		StringBuilder textSb = new StringBuilder();
 
-		FrameworkTestResults results = new FrameworkTestResults(100);
-
-		for (TestFileResult fileResult : results.getFileResults()) {
-
-			FileInfo fileInfo = mapFileByClass(nameMap, fileResult.getPath());
-			if (fileInfo == null) {
-				// XXX: could not locate this file
-				System.err.println("WARNING: could not locate file associated with test path: " + fileResult.getPath());
-			} else {
-				addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, textSb);
+		FrameworkTestResults frameworkResults = results.getResults();
+		if (frameworkResults != null && frameworkResults.getFileResults() != null) {
+			for (TestFileResult fileResult : frameworkResults.getFileResults()) {
+				FileInfo fileInfo = mapFileByPath(nameMap, fileResult.getPath());
+				if (fileInfo == null) {
+					// XXX: could not locate this file
+					System.err.println(
+							"WARNING: could not locate file associated with test path: " + fileResult.getPath());
+				} else {
+					addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, textSb);
+				}
 			}
 		}
 
@@ -150,7 +205,10 @@ public class LambdaHandler implements RequestStreamHandler {
 		return output;
 	}
 
-	private FileInfo mapFileByClass(Map<String, FileInfo> nameMap, String testPath) {
+	/**
+	 * XXX: Maybe just use substring or endswith here because it's all about paths (at least in java)
+	 */
+	private FileInfo mapFileByPath(Map<String, FileInfo> nameMap, String testPath) {
 
 		FileInfo result = nameMap.get(testPath);
 		if (result != null) {
@@ -204,19 +262,14 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private void validateSecret(OutputStream outputStream, String requestSecret, GithubClient github)
-			throws IOException {
-		int installationId = github.findInstallationId();
-		long secret = getInstallationIdSecret();
+	private boolean validateSecret(OutputStream outputStream, String requestSecret, int installationId) {
 
+		long secret = getInstallationIdSecret();
 		long value = installationId ^ secret;
 		String digest = sha1Digest(Long.toString(value));
+
 		// XXX: test old secret as well
-		if (!digest.equals(requestSecret)) {
-			outputStream.write(
-					("{ \"response\" : \"Invalid secret.  Is your test-check-publisher env variable set right?\" }")
-							.getBytes());
-		}
+		return (digest.equals(requestSecret));
 	}
 
 	private PrivateKey getApplicationKey() throws IOException {

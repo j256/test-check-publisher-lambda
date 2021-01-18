@@ -74,12 +74,16 @@ public class CheckRunRequest {
 			return errorCount;
 		}
 
-		public void setSummary(String summary) {
-			this.summary = summary;
+		public String getTitle() {
+			return title;
 		}
 
 		public void setTitle(String title) {
 			this.title = title;
+		}
+
+		public void setSummary(String summary) {
+			this.summary = summary;
 		}
 
 		public void setText(String text) {

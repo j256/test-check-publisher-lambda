@@ -141,12 +141,6 @@
 	<dependencies>
 		<!-- dependencies -->
 		<dependency>
-			<groupId>com.google.code.gson</groupId>
-			<artifactId>gson</artifactId>
-			<version>${gson-version}</version>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-gson</artifactId>
 			<version>${jjwt-version}</version>
@@ -175,6 +169,16 @@
 			<groupId>software.amazon.awssdk</groupId>
 			<artifactId>ssm</artifactId>
 			<version>2.15.66</version>
+		</dependency>
+		<dependency>
+			<groupId>com.amazonaws</groupId>
+			<artifactId>aws-lambda-java-log4j</artifactId>
+			<version>1.0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j18-impl</artifactId>
+			<version>2.14.0</version>
 		</dependency>
 
 		<!-- test dependencies -->
