@@ -24,6 +24,9 @@
 		<gson-version>2.2.2</gson-version>
 		<jjwt-version>0.11.2</jjwt-version>
 		<httpclient-version>4.5.13</httpclient-version>
+		<aws-lambda-java-core>1.1.0</aws-lambda-java-core>
+		<aws-lambda-java-log4j-version>1.0.1</aws-lambda-java-log4j-version>
+		<log4j-slf4j18-impl-version>2.14.0</log4j-slf4j18-impl-version>
 
 		<!-- test dependencies -->
 		<junit-version>4.13.1</junit-version>
@@ -157,11 +160,6 @@
 			</exclusions>
 		</dependency>
 		<dependency>
-			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt-impl</artifactId>
-			<version>${jjwt-version}</version>
-		</dependency>
-		<dependency>
 			<groupId>org.apache.httpcomponents</groupId>
 			<artifactId>httpclient</artifactId>
 			<version>${httpclient-version}</version>
@@ -169,18 +167,17 @@
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-lambda-java-core</artifactId>
-			<version>1.1.0</version>
+			<version>${aws-lambda-java-core}</version>
 		</dependency>
-		<!-- <dependency> <groupId>software.amazon.awssdk</groupId> <artifactId>ssm</artifactId> <version>2.15.66</version> </dependency> -->
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-lambda-java-log4j</artifactId>
-			<version>1.0.1</version>
+			<version>${aws-lambda-java-log4j-version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-slf4j18-impl</artifactId>
-			<version>2.14.0</version>
+			<version>${log4j-slf4j18-impl-version}</version>
 		</dependency>
 
 		<!-- test dependencies -->

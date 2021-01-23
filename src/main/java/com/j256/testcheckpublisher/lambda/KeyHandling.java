@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher;
+package com.j256.testcheckpublisher.lambda;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

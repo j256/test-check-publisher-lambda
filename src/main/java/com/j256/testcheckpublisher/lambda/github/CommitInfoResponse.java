@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher.github;
+package com.j256.testcheckpublisher.lambda.github;
 
 public class CommitInfoResponse {
 

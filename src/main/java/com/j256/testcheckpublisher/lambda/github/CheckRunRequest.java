@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher.github;
+package com.j256.testcheckpublisher.lambda.github;
 
 import java.util.ArrayList;
 import java.util.Collection;

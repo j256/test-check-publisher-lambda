@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher.github;
+package com.j256.testcheckpublisher.lambda.github;
 
 /**
  * Response that returns the id of the result.

@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher;
+package com.j256.testcheckpublisher.lambda.github;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -22,13 +22,8 @@ import org.apache.http.message.BasicHeader;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
-import com.j256.testcheckpublisher.github.AccessTokenRequest;
-import com.j256.testcheckpublisher.github.AccessTokensResponse;
-import com.j256.testcheckpublisher.github.CheckRunRequest;
-import com.j256.testcheckpublisher.github.CommitInfoResponse;
-import com.j256.testcheckpublisher.github.IdResponse;
-import com.j256.testcheckpublisher.github.TreeInfoResponse;
-import com.j256.testcheckpublisher.github.TreeInfoResponse.TreeFile;
+import com.j256.testcheckpublisher.lambda.FileInfo;
+import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;

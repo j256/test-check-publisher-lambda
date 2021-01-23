@@ -1,4 +1,4 @@
-package com.j256.testcheckpublisher;
+package com.j256.testcheckpublisher.lambda;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,14 +30,16 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.j256.testcheckpublisher.PublishedTestResults;
 import com.j256.testcheckpublisher.frameworks.FrameworkTestResults;
 import com.j256.testcheckpublisher.frameworks.FrameworkTestResults.TestFileResult;
-import com.j256.testcheckpublisher.github.CheckRunRequest;
-import com.j256.testcheckpublisher.github.CheckRunRequest.CheckLevel;
-import com.j256.testcheckpublisher.github.CheckRunRequest.CheckRunAnnotation;
-import com.j256.testcheckpublisher.github.CheckRunRequest.CheckRunOutput;
-import com.j256.testcheckpublisher.github.CommitInfoResponse;
-import com.j256.testcheckpublisher.github.CommitInfoResponse.ChangedFile;
+import com.j256.testcheckpublisher.lambda.github.CheckRunRequest;
+import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse;
+import com.j256.testcheckpublisher.lambda.github.GithubClient;
+import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckLevel;
+import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
+import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
+import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse.ChangedFile;
 
 /**
  * Main lambda handler.
@@ -51,10 +53,10 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String SHA1_ALGORITHM = "SHA1";
 	private static final String INSTALLATION_PATH_PREFIX = "/install";
 	private static final Pattern INSTALLATION_ID_QUERY_PATTERN = Pattern.compile(".*?installation_id=(\\d+).*");
+	private static final String INTEGREATION_NAME = "test-check-publisher";
 
 	// XXX: need an old one too right?
 	private static volatile PrivateKey applicationKey;
-	// XXX: need an old one too right?
 	private static volatile long installationIdSecret;
 
 	@Override
@@ -89,9 +91,10 @@ public class LambdaHandler implements RequestStreamHandler {
 		Matcher matcher = INSTALLATION_ID_QUERY_PATTERN.matcher(request.getRawQueryString());
 		if (matcher.matches()) {
 			int installationId = Integer.parseInt(matcher.group(1));
-			html.append("<p> Thanks for installing my tool.  You'll need to add the following environment variable\n");
+			html.append("<p> Thanks for installing the " + INTEGREATION_NAME
+					+ " integration.  You will need to add the following environment variable\n");
 			html.append("    info your continuous-integration system.  Please write this down: <p>\n");
-			String secret = getInstallationIdSecret(installationId);
+			String secret = createInstallationHash(installationId);
 			html.append("<p><code>")
 					.append(PublishedTestResults.SECRET_ENV)
 					.append(" = ")
@@ -100,7 +103,8 @@ public class LambdaHandler implements RequestStreamHandler {
 		} else {
 			logger.log("installation query string in strange format: " + request.getRawQueryString() + "\n");
 			html.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
-			html.append("    reinstalling the app on your username.  Sorry about that. <p>\n");
+			html.append("    reinstalling the " + INTEGREATION_NAME
+					+ " integration to your repository.  Sorry about that. <p>\n");
 		}
 
 		html.append("</body>\n");
@@ -149,15 +153,15 @@ public class LambdaHandler implements RequestStreamHandler {
 			logger.log(repository + ": no installation-id\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain",
 					"Could not find installation for application in repository " + repository
-							+ ".  You should reinstall the test-check-publisher integration.");
+							+ ".  You should reinstall the " + INTEGREATION_NAME + " integration.");
 			return;
 		}
 
 		if (!validateSecret(results.getSecret(), installationId)) {
 			logger.log(repository + ": secret did not validate\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
-					"The secret environmental variable value did not validate.  You may need to reinstall "
-							+ "the test-check-publisher integration.");
+					"The secret environmental variable value did not validate.  You may need to reinstall " + "the "
+							+ INTEGREATION_NAME + " integration.");
 			return;
 		}
 
@@ -358,11 +362,11 @@ public class LambdaHandler implements RequestStreamHandler {
 	}
 
 	private boolean validateSecret(String requestSecret, int installationId) {
-		String digest = getInstallationIdSecret(installationId);
+		String digest = createInstallationHash(installationId);
 		return (digest.equals(requestSecret));
 	}
 
-	private String getInstallationIdSecret(int installationId) {
+	private String createInstallationHash(int installationId) {
 		long secret = getInstallationIdSecret();
 		long value = installationId ^ secret;
 		return sha1Digest(Long.toString(value));
@@ -409,17 +413,6 @@ public class LambdaHandler implements RequestStreamHandler {
 	}
 
 	private PrivateKey loadKey() throws IOException, GeneralSecurityException {
-
-		// SsmClient ssmClient = SsmClient.builder().build();
-		// GetParameterResponse result =
-		// ssmClient.getParameter(GetParameterRequest.builder().name(PUBLISHER_SECRET_PARAM).build());
-		// if (result == null) {
-		// throw new IOException("ssmClient.getParameter() returned null");
-		// } else if (result.parameter() == null) {
-		// throw new IOException("ssmClient.getParameter().parameter() is null");
-		// }
-		// String pem = result.parameter().value();
-
 		String pem = System.getenv(PUBLISHER_PEM_ENV);
 		if (pem == null) {
 			throw new IOException("publisher secret env is null");
