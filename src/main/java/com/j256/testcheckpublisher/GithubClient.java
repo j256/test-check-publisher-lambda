@@ -9,12 +9,15 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
+import org.apache.http.Header;
 import org.apache.http.HttpStatus;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.google.gson.Gson;
@@ -24,7 +27,6 @@ import com.j256.testcheckpublisher.github.AccessTokensResponse;
 import com.j256.testcheckpublisher.github.CheckRunRequest;
 import com.j256.testcheckpublisher.github.CommitInfoResponse;
 import com.j256.testcheckpublisher.github.IdResponse;
-import com.j256.testcheckpublisher.github.InstallationInfo;
 import com.j256.testcheckpublisher.github.TreeInfoResponse;
 import com.j256.testcheckpublisher.github.TreeInfoResponse.TreeFile;
 
@@ -33,15 +35,16 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 
 /**
- * Main lambda handler.
+ * Github client wrapper which handles the access and bearer token.
  * 
  * @author graywatson
  */
 public class GithubClient {
 
-	private static final String JWT_ISSUER_ENV_NAME = "jwt_issuer";
+	private static final String GITHUB_APP_ID_ENV = "github_app_id";
 	private static final long JWT_TTL_MILLIS = 10 * 60 * 1000;
 	private static final String TREE_TYPE = "tree";
+	private static final Header ACCEPT_HEADER = new BasicHeader("Accept", "application/vnd.github.v3+json");
 
 	private final CloseableHttpClient httpclient;
 	private final String owner;
@@ -52,8 +55,9 @@ public class GithubClient {
 
 	private final Gson gson = new Gson();
 	private int installationId;
-	private String bearerToken;
-	private String accessToken;
+	private Header bearerTokenHeader;
+	private Header accessTokenHeader;
+	private StatusLine lastStatusLine;
 
 	public GithubClient(CloseableHttpClient httpclient, String owner, String repository, PrivateKey applicationKey,
 			LambdaLogger logger) {
@@ -63,27 +67,28 @@ public class GithubClient {
 		this.applicationKey = applicationKey;
 		this.logger = logger;
 
-		this.jwtIssuer = System.getenv(JWT_ISSUER_ENV_NAME);
+		this.jwtIssuer = System.getenv(GITHUB_APP_ID_ENV);
 		if (jwtIssuer == null) {
 			throw new IllegalStateException("Could not find JWT issuer env variable");
 		}
 	}
 
+	/**
+	 * Find and return the installation-id for a particular repo.
+	 */
 	public int findInstallationId() throws IOException {
 
 		if (installationId != 0) {
 			return installationId;
 		}
 
-		// XXX:need to cache this
-		// XXX: need to handle paging and request 100 per
-
 		HttpGet get = new HttpGet("https://api.github.com/repos/" + owner + "/" + repository + "/installation");
-		get.addHeader("Authorization", "Bearer " + getBearerToken());
-		get.addHeader("Accept", "application/vnd.github.v3+json");
+		get.addHeader(getBearerTokenHeader());
+		get.addHeader(ACCEPT_HEADER);
 		try (CloseableHttpResponse response = httpclient.execute(get)) {
 
-			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+			lastStatusLine = response.getStatusLine();
+			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
 				logger.log(repository + ": installation request failed: " + response.getStatusLine() + "\n");
 				return 0;
 			}
@@ -94,39 +99,11 @@ public class GithubClient {
 		}
 	}
 
-	public int findInstallationIds() throws IOException {
-
-		if (installationId != 0) {
-			return installationId;
-		}
-
-		// XXX:need to cache this
-		// XXX: need to handle paging and request 100 per
-
-		HttpGet get = new HttpGet("https://api.github.com/app/installations");
-		get.addHeader("Authorization", "Bearer " + getBearerToken());
-		get.addHeader("Accept", "application/vnd.github.v3+json");
-		try (CloseableHttpResponse response = httpclient.execute(get)) {
-
-			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-				logger.log(repository + ": installations request failed: " + response.getStatusLine() + "\n");
-				return 0;
-			}
-
-			InstallationInfo[] installations =
-					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), InstallationInfo[].class);
-
-			for (InstallationInfo installation : installations) {
-				if (owner.equals(installation.getAccount().getLogin())) {
-					installationId = installation.getId();
-					return installationId;
-				}
-			}
-		}
-
-		// need to return an exception
-
-		return 0;
+	/**
+	 * Login to github meaning get the access token.
+	 */
+	public boolean login() throws IOException {
+		return (getAccessTokenHeader() != null);
 	}
 
 	/**
@@ -136,11 +113,12 @@ public class GithubClient {
 			throws JsonSyntaxException, UnsupportedOperationException, IOException {
 
 		HttpGet get = new HttpGet("https://api.github.com/repos/" + owner + "/" + repository + "/commits/" + topSha);
-		get.addHeader("Accept", "application/vnd.github.v3+json");
+		get.addHeader(ACCEPT_HEADER);
 
 		try (CloseableHttpResponse response = httpclient.execute(get);
 				Reader contentReader = new InputStreamReader(response.getEntity().getContent());) {
-			if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+			lastStatusLine = response.getStatusLine();
+			if (lastStatusLine.getStatusCode() == HttpStatus.SC_OK) {
 				return gson.fromJson(contentReader, CommitInfoResponse.class);
 			} else {
 				logger.log(repository + ": commit-info request failed: " + response.getStatusLine() + "\n");
@@ -157,15 +135,15 @@ public class GithubClient {
 		// GET /repos/{owner}/{repo}/git/trees/{tree_sha}
 		HttpGet get = new HttpGet(
 				"https://api.github.com/repos/" + owner + "/" + repository + "/git/trees/" + sha + "?recursive=1");
-		get.addHeader("Authorization", "token " + getAccessToken());
-		get.addHeader("Accept", "application/vnd.github.v3+json");
+		get.addHeader(getAccessTokenHeader());
+		get.addHeader(ACCEPT_HEADER);
 
 		List<FileInfo> fileInfos = new ArrayList<>();
 		try (CloseableHttpResponse response = httpclient.execute(get);
 				Reader reader = new InputStreamReader(response.getEntity().getContent());) {
 
-			// did the request work?
-			if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+			lastStatusLine = response.getStatusLine();
+			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
 				logger.log(repository + ": tree request failed: " + response.getStatusLine() + "\n");
 				return null;
 			}
@@ -189,13 +167,14 @@ public class GithubClient {
 	public boolean addCheckRun(CheckRunRequest request) throws IOException {
 
 		HttpPost post = new HttpPost("https://api.github.com/repos/" + owner + "/" + repository + "/check-runs");
-		post.addHeader("Authorization", "token " + getAccessToken());
-		post.addHeader("Accept", "application/vnd.github.v3+json");
+		post.addHeader(getAccessTokenHeader());
+		post.addHeader(ACCEPT_HEADER);
 
 		post.setEntity(new StringEntity(gson.toJson(request)));
 
 		try (CloseableHttpResponse response = httpclient.execute(post)) {
-			if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+			lastStatusLine = response.getStatusLine();
+			if (lastStatusLine.getStatusCode() == HttpStatus.SC_CREATED) {
 				return true;
 			} else {
 				logger.log(repository + ": check-runs request failed: " + response.getStatusLine() + "\n");
@@ -204,9 +183,43 @@ public class GithubClient {
 		}
 	}
 
-	private String getBearerToken() {
-		if (bearerToken != null) {
-			return bearerToken;
+	public StatusLine getLastStatusLine() {
+		return lastStatusLine;
+	}
+
+	private Header getAccessTokenHeader() throws JsonSyntaxException, UnsupportedOperationException, IOException {
+		if (accessTokenHeader != null) {
+			return accessTokenHeader;
+		}
+
+		int installationId = findInstallationId();
+
+		HttpPost post = new HttpPost("https://api.github.com/app/installations/" + installationId + "/access_tokens");
+		post.addHeader(getBearerTokenHeader());
+		post.addHeader(ACCEPT_HEADER);
+
+		AccessTokenRequest request = new AccessTokenRequest(installationId, new String[] { repository });
+		post.setEntity(new StringEntity(gson.toJson(request)));
+
+		try (CloseableHttpResponse response = httpclient.execute(post)) {
+			lastStatusLine = response.getStatusLine();
+			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
+				return null;
+			}
+			AccessTokensResponse tokens =
+					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), AccessTokensResponse.class);
+			String accessToken = tokens.getToken();
+			if (accessToken == null || accessToken.length() == 0) {
+				return null;
+			}
+			accessTokenHeader = new BasicHeader("Authorization", "token " + accessToken);
+			return accessTokenHeader;
+		}
+	}
+
+	private Header getBearerTokenHeader() {
+		if (bearerTokenHeader != null) {
+			return bearerTokenHeader;
 		}
 
 		long nowMillis = System.currentTimeMillis();
@@ -221,30 +234,8 @@ public class GithubClient {
 			Date exp = new Date(expMillis);
 			builder.setExpiration(exp);
 		}
-		bearerToken = builder.compact();
-		return bearerToken;
-	}
-
-	private String getAccessToken() throws JsonSyntaxException, UnsupportedOperationException, IOException {
-		if (accessToken != null) {
-			return accessToken;
-		}
-
-		int installationId = findInstallationId();
-
-		HttpPost post = new HttpPost("https://api.github.com/app/installations/" + installationId + "/access_tokens");
-		post.addHeader("Authorization", "Bearer " + getBearerToken());
-		post.addHeader("Accept", "application/vnd.github.v3+json");
-
-		AccessTokenRequest request = new AccessTokenRequest(installationId, new String[] { repository });
-		post.setEntity(new StringEntity(gson.toJson(request)));
-
-		try (CloseableHttpResponse response = httpclient.execute(post)) {
-
-			AccessTokensResponse tokens =
-					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), AccessTokensResponse.class);
-			accessToken = tokens.getToken();
-			return accessToken;
-		}
+		String bearerToken = builder.compact();
+		bearerTokenHeader = new BasicHeader("Authorization", "Bearer " + bearerToken);
+		return bearerTokenHeader;
 	}
 }

@@ -1,6 +1,5 @@
 package com.j256.testcheckpublisher;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -144,26 +143,37 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		GithubClient github = new GithubClient(httpclient, results.getOwner(), repository, getApplicationKey(), logger);
 
+		// lookup our installation-id and verify our secret
 		int installationId = github.findInstallationId();
 		if (installationId <= 0) {
 			logger.log(repository + ": no installation-id\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain",
 					"Could not find installation for application in repository " + repository
-							+ ", reinstall integration");
+							+ ".  You should reinstall the test-check-publisher integration.");
 			return;
 		}
 
 		if (!validateSecret(results.getSecret(), installationId)) {
 			logger.log(repository + ": secret did not validate\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
-					"Secret did not validate, reinstall integration");
+					"The secret environmental variable value did not validate.  You may need to reinstall "
+							+ "the test-check-publisher integration.");
 			return;
 		}
 
+		// login which creates our access-token
+		if (!github.login()) {
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Could not login to github for some reason: " + github.getLastStatusLine());
+			return;
+		}
+
+		// get detail about the commit
 		CommitInfoResponse commitInfo = github.requestCommitInfo(results.getCommitSha());
 		if (commitInfo == null) {
 			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
-					"Could not lookup commit information");
+					"Could not lookup commit information on github for sha " + results.getCommitSha() + ": "
+							+ github.getLastStatusLine());
 			return;
 		}
 
@@ -177,21 +187,35 @@ public class LambdaHandler implements RequestStreamHandler {
 			}
 		}
 
+		// list all of the files at the commit point
 		Collection<FileInfo> fileInfos = github.requestTreeFiles(commitInfo.getTreeSha());
+		if (fileInfos == null) {
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Could not get tree file information for tree sha " + commitInfo.getTreeSha() + ": "
+							+ github.getLastStatusLine());
+			return;
+		}
 		for (FileInfo fileInfo : fileInfos) {
 			if (commitPathSet.contains(fileInfo.getPath())) {
 				fileInfo.setInCommit(true);
 			}
 		}
 
-		CheckRunOutput output = createRequest(results, fileInfos);
+		// create the check-run request
+		CheckRunOutput output = createRequest(logger, results, fileInfos);
 		CheckRunRequest checkRunRequest =
 				new CheckRunRequest(results.getResults().getName(), results.getCommitSha(), output);
 
-		github.addCheckRun(checkRunRequest);
+		// post the check-run-request
+		if (!github.addCheckRun(checkRunRequest)) {
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Could not post check-runs to github: " + github.getLastStatusLine());
+			return;
+		}
 
 		logger.log(repository + ": posted check-run " + output.getTitle() + "\n");
-		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/plain", "check-run posted to github");
+		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/plain",
+				"Check-run posted to github: " + github.getLastStatusLine());
 	}
 
 	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, String contentType, String message)
@@ -203,7 +227,8 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private CheckRunOutput createRequest(PublishedTestResults results, Collection<FileInfo> fileInfos) {
+	private CheckRunOutput createRequest(LambdaLogger logger, PublishedTestResults results,
+			Collection<FileInfo> fileInfos) {
 
 		String owner = results.getOwner();
 		String repository = results.getRepository();
@@ -222,7 +247,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			nameMap.put(fileInfo.getName(), fileInfo);
 			int index = 0;
 			while (true) {
-				int nextIndex = path.indexOf(File.separatorChar, index);
+				int nextIndex = path.indexOf('/', index);
 				if (nextIndex < 0) {
 					break;
 				}
@@ -230,22 +255,41 @@ public class LambdaHandler implements RequestStreamHandler {
 				nameMap.put(path.substring(index), fileInfo);
 			}
 			// should be just the name
-			nameMap.put(path.substring(index), fileInfo);
+			String fileName = path.substring(index);
+			nameMap.put(fileName, fileInfo);
+			// also cut off the extension
+			index = fileName.indexOf('.');
+			if (index > 0) {
+				fileName = fileName.substring(0, index);
+				nameMap.put(fileName, fileInfo);
+			}
 		}
 
 		StringBuilder textSb = new StringBuilder();
 
 		FrameworkTestResults frameworkResults = results.getResults();
-		if (frameworkResults != null && frameworkResults.getFileResults() != null) {
-			for (TestFileResult fileResult : frameworkResults.getFileResults()) {
-				FileInfo fileInfo = mapFileByPath(nameMap, fileResult.getPath());
-				if (fileInfo == null) {
-					System.err.println(
-							"WARNING: could not locate file associated with test path: " + fileResult.getPath());
-				} else {
-					addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, textSb);
+		if (frameworkResults == null) {
+			logger.log(repository + ": no framework results\n");
+		} else {
+			if (frameworkResults.getFileResults() != null) {
+				Set<String> badPathSet = new HashSet<>();
+				for (TestFileResult fileResult : frameworkResults.getFileResults()) {
+					if (badPathSet.contains(fileResult.getPath())) {
+						// no reason to generate multiple errors
+						continue;
+					}
+					FileInfo fileInfo = mapFileByPath(nameMap, fileResult.getPath());
+					if (fileInfo == null) {
+						logger.log(repository + ": could not locate file associated with test path: "
+								+ fileResult.getPath() + "\n");
+						badPathSet.add(fileResult.getPath());
+					} else {
+						addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, textSb);
+					}
 				}
 			}
+			output.addCounts(frameworkResults.getNumTests(), frameworkResults.getNumFailures(),
+					frameworkResults.getNumErrors());
 		}
 
 		String title = output.getTestCount() + " tests, " + output.getErrorCount() + " errors, "
