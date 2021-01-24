@@ -1,17 +1,22 @@
 package com.j256.testcheckpublisher.lambda.github;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.http.Header;
 import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -23,6 +28,7 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.j256.testcheckpublisher.lambda.FileInfo;
+import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
 import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 
 import io.jsonwebtoken.JwtBuilder;
@@ -40,6 +46,7 @@ public class GithubClient {
 	private static final long JWT_TTL_MILLIS = 10 * 60 * 1000;
 	private static final String TREE_TYPE = "tree";
 	private static final Header ACCEPT_HEADER = new BasicHeader("Accept", "application/vnd.github.v3+json");
+	private static final int MAX_CHECK_ANNOTATIONS_PER_REQUEST = 50;
 
 	private final CloseableHttpClient httpclient;
 	private final String owner;
@@ -161,6 +168,38 @@ public class GithubClient {
 	 */
 	public boolean addCheckRun(CheckRunRequest request) throws IOException {
 
+		// make sure the number of annotations is below the per request limit
+		Collection<CheckRunAnnotation> annotations = request.output.annotations;
+		if (annotations == null || annotations.size() < MAX_CHECK_ANNOTATIONS_PER_REQUEST) {
+			return doCheckRunPost(request);
+		}
+
+		// turn into a list so we can twiddle with it
+		annotations = new ArrayList<>(annotations);
+		Iterator<CheckRunAnnotation> iterator = annotations.iterator();
+
+		List<CheckRunAnnotation> requestAnnotations = new ArrayList<>(MAX_CHECK_ANNOTATIONS_PER_REQUEST);
+		while (annotations.size() > MAX_CHECK_ANNOTATIONS_PER_REQUEST) {
+			requestAnnotations.clear();
+			// add the annotations from main list to the per-request list
+			for (int i = 0; i < MAX_CHECK_ANNOTATIONS_PER_REQUEST; i++) {
+				// add to the request list
+				requestAnnotations.add(iterator.next());
+				// remove from the main list
+				iterator.remove();
+			}
+			request.output.annotations = requestAnnotations;
+			if (!doCheckRunPost(request)) {
+				return false;
+			}
+			// loop around and send the next batch
+		}
+		request.output.annotations = annotations;
+		return doCheckRunPost(request);
+	}
+
+	private boolean doCheckRunPost(CheckRunRequest request)
+			throws IOException, UnsupportedEncodingException, ClientProtocolException {
 		HttpPost post = new HttpPost("https://api.github.com/repos/" + owner + "/" + repository + "/check-runs");
 		post.addHeader(getAccessTokenHeader());
 		post.addHeader(ACCEPT_HEADER);
@@ -173,6 +212,7 @@ public class GithubClient {
 				return true;
 			} else {
 				logger.log(repository + ": check-runs request failed: " + response.getStatusLine() + "\n");
+				logger.log("results: " + responseToString(response));
 				return false;
 			}
 		}
@@ -180,6 +220,20 @@ public class GithubClient {
 
 	public StatusLine getLastStatusLine() {
 		return lastStatusLine;
+	}
+
+	public String responseToString(CloseableHttpResponse response) throws IOException {
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+				StringWriter writer = new StringWriter()) {
+			char[] buf = new char[1024];
+			while (true) {
+				int num = reader.read(buf);
+				if (num < 0) {
+					return writer.toString();
+				}
+				writer.write(buf, 0, num);
+			}
+		}
 	}
 
 	private Header getAccessTokenHeader() throws JsonSyntaxException, UnsupportedOperationException, IOException {
@@ -198,7 +252,7 @@ public class GithubClient {
 
 		try (CloseableHttpResponse response = httpclient.execute(post)) {
 			lastStatusLine = response.getStatusLine();
-			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
+			if (lastStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
 				return null;
 			}
 			AccessTokensResponse tokens =

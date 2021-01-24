@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.j256.testcheckpublisher</groupId>
 	<artifactId>test-check-publisher-lambda</artifactId>
-	<version>0.2-SNAPSHOT</version>
+	<version>0.3-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<licenses>
 		<license>
@@ -58,7 +58,7 @@
 		</profile>
 	</profiles>
 	<build>
-		<finalName>test-check-publisher</finalName>
+		<finalName>test-check-publisher-lambda</finalName>
 		<!-- Resources -->
 		<resources>
 			<resource>
@@ -146,6 +146,11 @@
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-gson</artifactId>
+			<version>${jjwt-version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
 			<version>${jjwt-version}</version>
 		</dependency>
 		<dependency>

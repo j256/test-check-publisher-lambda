@@ -41,6 +41,7 @@ import com.j256.testcheckpublisher.plugin.PublishedTestResults;
 import com.j256.testcheckpublisher.plugin.TestCheckPubMojo;
 import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults;
 import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult;
+import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel;
 
 /**
  * Main lambda handler.
@@ -344,7 +345,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. You
 		 * might check in a change to a source file and fail a unit test not mentioned in the commit.
 		 */
-		if (!fileInfo.isInCommit()) {
+		if (!fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
 			textSb.append("* ")
 					.append(fileResult.getMessage())
 					.append(' ')
