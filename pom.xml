@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.j256.testcheckpublisher</groupId>
 	<artifactId>test-check-publisher-lambda</artifactId>
-	<version>0.1-SNAPSHOT</version>
+	<version>0.2-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<licenses>
 		<license>
@@ -150,7 +150,7 @@
 		</dependency>
 		<dependency>
 			<groupId>com.j256.testcheckpublisher</groupId>
-			<artifactId>test-check-publisher</artifactId>
+			<artifactId>test-check-publisher-maven-plugin</artifactId>
 			<version>${project.version}</version>
 			<exclusions>
 				<exclusion>

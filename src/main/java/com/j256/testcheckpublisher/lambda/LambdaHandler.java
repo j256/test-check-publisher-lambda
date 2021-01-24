@@ -30,16 +30,17 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.j256.testcheckpublisher.PublishedTestResults;
-import com.j256.testcheckpublisher.frameworks.FrameworkTestResults;
-import com.j256.testcheckpublisher.frameworks.FrameworkTestResults.TestFileResult;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest;
-import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse;
-import com.j256.testcheckpublisher.lambda.github.GithubClient;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckLevel;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
+import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse;
 import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse.ChangedFile;
+import com.j256.testcheckpublisher.lambda.github.GithubClient;
+import com.j256.testcheckpublisher.plugin.PublishedTestResults;
+import com.j256.testcheckpublisher.plugin.TestCheckPubMojo;
+import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults;
+import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult;
 
 /**
  * Main lambda handler.
@@ -96,7 +97,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			html.append("    info your continuous-integration system.  Please write this down: <p>\n");
 			String secret = createInstallationHash(installationId);
 			html.append("<p><code>")
-					.append(PublishedTestResults.SECRET_ENV)
+					.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
 					.append(" = ")
 					.append(secret)
 					.append("</code></p>");

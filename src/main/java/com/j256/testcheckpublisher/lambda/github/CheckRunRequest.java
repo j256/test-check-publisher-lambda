@@ -145,7 +145,7 @@ public class CheckRunRequest {
 		;
 
 		public static CheckLevel fromTestLevel(
-				com.j256.testcheckpublisher.frameworks.FrameworkTestResults.TestFileResult.TestLevel testLevel) {
+				com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel testLevel) {
 			switch (testLevel) {
 				case FAILURE:
 				case ERROR:
