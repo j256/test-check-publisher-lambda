@@ -2,6 +2,8 @@ package com.j256.testcheckpublisher.lambda.github;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -43,7 +45,7 @@ public class CheckRunRequest {
 		transient int failureCount;
 		transient int errorCount;
 
-		Collection<CheckRunAnnotation> annotations;
+		List<CheckRunAnnotation> annotations;
 
 		public Collection<CheckRunAnnotation> getAnnotations() {
 			return annotations;
@@ -60,6 +62,12 @@ public class CheckRunRequest {
 				this.annotations = new ArrayList<>();
 			}
 			this.annotations.add(annotation);
+		}
+
+		public void sortAnnotations() {
+			if (this.annotations != null) {
+				Collections.sort(annotations);
+			}
 		}
 
 		public int getTestCount() {
@@ -95,7 +103,7 @@ public class CheckRunRequest {
 	 * Annotation to the check-run that highlights specific test information. It is designed to be for files that are
 	 * referenced in the particular commit in question.
 	 */
-	public static class CheckRunAnnotation {
+	public static class CheckRunAnnotation implements Comparable<CheckRunAnnotation> {
 		String path;
 		@SerializedName("start_line")
 		int startLine;
@@ -126,6 +134,12 @@ public class CheckRunRequest {
 		public CheckLevel getLevel() {
 			return level;
 		}
+
+		@Override
+		public int compareTo(CheckRunAnnotation other) {
+			// we want higher levels first
+			return other.level.compareValues(level);
+		}
 	}
 
 	/**
@@ -133,27 +147,41 @@ public class CheckRunRequest {
 	 */
 	public static enum CheckLevel {
 		@SerializedName("notice")
-		NOTICE,
+		NOTICE(1),
 		@SerializedName("warning")
-		WARNING,
+		WARNING(2),
+		@SerializedName("failure")
+		FAILURE(3),
 		// serialized as failure but recorded differently
 		@SerializedName("failure")
-		ERROR,
-		@SerializedName("failure")
-		FAILURE,
+		ERROR(4),
 		// end
 		;
+
+		private final int value;
+
+		private CheckLevel(int value) {
+			this.value = value;
+		}
 
 		public static CheckLevel fromTestLevel(
 				com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel testLevel) {
 			switch (testLevel) {
 				case FAILURE:
+					return CheckLevel.FAILURE;
 				case ERROR:
 					return CheckLevel.ERROR;
 				case NOTICE:
 				default:
 					return CheckLevel.NOTICE;
 			}
+		}
+
+		/**
+		 * Compare the values of the level.
+		 */
+		public int compareValues(CheckLevel other) {
+			return value - other.value;
 		}
 	}
 

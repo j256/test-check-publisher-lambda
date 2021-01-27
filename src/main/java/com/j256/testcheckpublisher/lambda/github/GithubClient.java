@@ -169,7 +169,7 @@ public class GithubClient {
 	public boolean addCheckRun(CheckRunRequest request) throws IOException {
 
 		// make sure the number of annotations is below the per request limit
-		Collection<CheckRunAnnotation> annotations = request.output.annotations;
+		List<CheckRunAnnotation> annotations = request.output.annotations;
 		if (annotations == null || annotations.size() < MAX_CHECK_ANNOTATIONS_PER_REQUEST) {
 			return doCheckRunPost(request);
 		}
