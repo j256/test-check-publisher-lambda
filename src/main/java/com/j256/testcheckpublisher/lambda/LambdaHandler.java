@@ -112,7 +112,6 @@ public class LambdaHandler implements RequestStreamHandler {
 		html.append("</body>\n");
 		html.append("</html>\n");
 
-		// XXX: calculate the secret and return a webpage of it
 		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/html", html.toString());
 	}
 
@@ -297,6 +296,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			output.addCounts(frameworkResults.getNumTests(), frameworkResults.getNumFailures(),
 					frameworkResults.getNumErrors());
 		}
+		output.sortAnnotations();
 
 		String title = output.getTestCount() + " tests, " + output.getErrorCount() + " errors, "
 				+ output.getFailureCount() + " failures";
@@ -346,9 +346,9 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * might check in a change to a source file and fail a unit test not mentioned in the commit.
 		 */
 		if (!fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
-			textSb.append("* ")
-					.append(fileResult.getMessage())
-					.append(' ')
+			textSb.append("* ");
+			appendEscapedMessage(textSb, fileResult.getMessage());
+			textSb.append(' ')
 					.append("https://github.com/")
 					.append(owner)
 					.append('/')
@@ -360,6 +360,22 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append("#L")
 					.append(fileResult.getLineNumber())
 					.append("\n");
+		}
+	}
+
+	private void appendEscapedMessage(StringBuilder sb, String msg) {
+		int len = msg.length();
+		for (int i = 0; i < len; i++) {
+			char ch = msg.charAt(i);
+			if (ch == '<') {
+				sb.append("&lt;");
+			} else if (ch == '>') {
+				sb.append("&gt;");
+			} else if (ch == '&') {
+				sb.append("&amp;");
+			} else {
+				sb.append(ch);
+			}
 		}
 	}
 
