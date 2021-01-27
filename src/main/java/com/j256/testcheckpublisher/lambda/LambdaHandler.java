@@ -309,9 +309,6 @@ public class LambdaHandler implements RequestStreamHandler {
 		return output;
 	}
 
-	/**
-	 * XXX: Maybe just use substring or endswith here because it's all about paths (at least in java)
-	 */
 	private FileInfo mapFileByPath(Map<String, FileInfo> nameMap, String testPath) {
 
 		FileInfo result = nameMap.get(testPath);
@@ -331,7 +328,7 @@ public class LambdaHandler implements RequestStreamHandler {
 				return result;
 			}
 		}
-		// should be just the name
+		// could be just the name
 		return nameMap.get(testPath.substring(index));
 	}
 
@@ -344,13 +341,15 @@ public class LambdaHandler implements RequestStreamHandler {
 						level, fileResult.getTestName(), fileResult.getMessage(), fileResult.getDetails()));
 
 		/*
-		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. You
-		 * might check in a change to a source file and fail a unit test not mentioned in the commit which results in
-		 * effectively a broken link in the annotation file reference unfortunately.
+		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. The
+		 * commit might make a change to a source file and fail a unit test that is not part of the commit. This results
+		 * in effectively a broken link in the annotation file reference unfortunately.
 		 */
 		if (format.isWriteDetails() && !fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
 			textSb.append("* ");
+			textSb.append("<span style=\"color:red;\">");
 			appendEscapedMessage(textSb, fileResult.getMessage());
+			textSb.append("</span>");
 			textSb.append(' ')
 					.append("https://github.com/")
 					.append(owner)
@@ -362,13 +361,12 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append(fileInfo.getPath())
 					.append("#L")
 					.append(fileResult.getLineNumber())
-					.append("\n");
+					.append('\n');
 		}
 	}
 
 	private void appendEscapedMessage(StringBuilder sb, String msg) {
 		int len = msg.length();
-		sb.append("<span style=\"color:red;\">");
 		for (int i = 0; i < len; i++) {
 			char ch = msg.charAt(i);
 			if (ch == '<') {
@@ -381,7 +379,6 @@ public class LambdaHandler implements RequestStreamHandler {
 				sb.append(ch);
 			}
 		}
-		sb.append("</span>");
 	}
 
 	private boolean validateSecret(String requestSecret, int installationId) {
@@ -423,13 +420,13 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 		String secretStr = System.getenv(INSTALLTION_ID_SECRET_ENV);
 		if (secretStr == null) {
-			throw new RuntimeException("secret env value is null: " + INSTALLTION_ID_SECRET_ENV);
+			throw new IllegalStateException("secret env value is null: " + INSTALLTION_ID_SECRET_ENV);
 		}
 		try {
 			secret = Long.parseLong(secretStr);
-		} catch (Exception e) {
-			// we do this to not expose the secret in the logs
-			throw new RuntimeException("Could not parse long secret string");
+		} catch (NumberFormatException nfe) {
+			// we do't chain the exception to not expose the secret string in the logs
+			throw new NumberFormatException("Could not parse long secret string");
 		}
 		installationIdSecret = secret;
 		return secret;
@@ -458,7 +455,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		try {
 			return MessageDigest.getInstance(algorithm);
 		} catch (NoSuchAlgorithmException nsae) {
-			throw new RuntimeException("could not get " + algorithm + " instance", nsae);
+			throw new IllegalStateException("could not get " + algorithm + " instance", nsae);
 		}
 	}
 
@@ -481,6 +478,9 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * Find the format for our string returning {@link #DEFAULT} if not found.
 		 */
 		public static GithubFormat fromString(String str) {
+			if (str == null) {
+				return DEFAULT;
+			}
 			for (GithubFormat format : values()) {
 				if (format.name().equalsIgnoreCase(str)) {
 					return format;
