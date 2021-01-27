@@ -125,8 +125,8 @@ public class LambdaHandler implements RequestStreamHandler {
 			body = new String(Base64.decodeBase64(body));
 		}
 
-		PublishedTestResults results = gson.fromJson(body, PublishedTestResults.class);
-		if (results == null) {
+		PublishedTestResults publishedResults = gson.fromJson(body, PublishedTestResults.class);
+		if (publishedResults == null) {
 			// request sanity check failed
 			logger.log("got null results\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain",
@@ -134,19 +134,20 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		if (!results.isMagicCorrect()) {
+		if (!publishedResults.isMagicCorrect()) {
 			// request sanity check failed
-			logger.log("request sanity check failed: " + results.getMagic() + "\n");
+			logger.log("request sanity check failed: " + publishedResults.getMagic() + "\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain", "Posted request is invalid");
 			return;
 		}
-		String repository = results.getRepository();
+		String repository = publishedResults.getRepository();
 
-		logger.log(results.getOwner() + "/" + repository + "@" + results.getCommitSha() + "\n");
+		logger.log(publishedResults.getOwner() + "/" + repository + "@" + publishedResults.getCommitSha() + "\n");
 
 		CloseableHttpClient httpclient = HttpClients.createDefault();
 
-		GithubClient github = new GithubClient(httpclient, results.getOwner(), repository, getApplicationKey(), logger);
+		GithubClient github =
+				new GithubClient(httpclient, publishedResults.getOwner(), repository, getApplicationKey(), logger);
 
 		// lookup our installation-id and verify our secret
 		int installationId = github.findInstallationId();
@@ -158,7 +159,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		if (!validateSecret(results.getSecret(), installationId)) {
+		if (!validateSecret(publishedResults.getSecret(), installationId)) {
 			logger.log(repository + ": secret did not validate\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
 					"The secret environmental variable value did not validate.  You may need to reinstall " + "the "
@@ -174,10 +175,10 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		// get detail about the commit
-		CommitInfoResponse commitInfo = github.requestCommitInfo(results.getCommitSha());
+		CommitInfoResponse commitInfo = github.requestCommitInfo(publishedResults.getCommitSha());
 		if (commitInfo == null) {
 			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
-					"Could not lookup commit information on github for sha " + results.getCommitSha() + ": "
+					"Could not lookup commit information on github for sha " + publishedResults.getCommitSha() + ": "
 							+ github.getLastStatusLine());
 			return;
 		}
@@ -206,10 +207,13 @@ public class LambdaHandler implements RequestStreamHandler {
 			}
 		}
 
+		FrameworkTestResults frameworkResults = publishedResults.getResults();
+		GithubFormat format = GithubFormat.fromString(frameworkResults.getFormat());
+
 		// create the check-run request
-		CheckRunOutput output = createRequest(logger, results, fileInfos);
+		CheckRunOutput output = createRequest(logger, publishedResults, fileInfos, frameworkResults, format);
 		CheckRunRequest checkRunRequest =
-				new CheckRunRequest(results.getResults().getName(), results.getCommitSha(), output);
+				new CheckRunRequest(frameworkResults.getName(), publishedResults.getCommitSha(), output);
 
 		// post the check-run-request
 		if (!github.addCheckRun(checkRunRequest)) {
@@ -232,12 +236,12 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private CheckRunOutput createRequest(LambdaLogger logger, PublishedTestResults results,
-			Collection<FileInfo> fileInfos) {
+	private CheckRunOutput createRequest(LambdaLogger logger, PublishedTestResults publishedResults,
+			Collection<FileInfo> fileInfos, FrameworkTestResults frameworkResults, GithubFormat format) {
 
-		String owner = results.getOwner();
-		String repository = results.getRepository();
-		String commitSha = results.getCommitSha();
+		String owner = publishedResults.getOwner();
+		String repository = publishedResults.getRepository();
+		String commitSha = publishedResults.getCommitSha();
 
 		CheckRunOutput output = new CheckRunOutput();
 
@@ -272,7 +276,6 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		StringBuilder textSb = new StringBuilder();
 
-		FrameworkTestResults frameworkResults = results.getResults();
 		if (frameworkResults == null) {
 			logger.log(repository + ": no framework results\n");
 		} else {
@@ -289,7 +292,7 @@ public class LambdaHandler implements RequestStreamHandler {
 								+ fileResult.getPath() + "\n");
 						badPathSet.add(fileResult.getPath());
 					} else {
-						addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, textSb);
+						addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, format, textSb);
 					}
 				}
 			}
@@ -333,19 +336,19 @@ public class LambdaHandler implements RequestStreamHandler {
 	}
 
 	private void addTestResult(String owner, String repository, String commitSha, CheckRunOutput output,
-			TestFileResult fileResult, FileInfo fileInfo, StringBuilder textSb) {
+			TestFileResult fileResult, FileInfo fileInfo, GithubFormat format, StringBuilder textSb) {
 
 		CheckLevel level = CheckLevel.fromTestLevel(fileResult.getTestLevel());
-
 		output.addAnnotation(
 				new CheckRunAnnotation(fileInfo.getPath(), fileResult.getLineNumber(), fileResult.getLineNumber(),
 						level, fileResult.getTestName(), fileResult.getMessage(), fileResult.getDetails()));
 
 		/*
 		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. You
-		 * might check in a change to a source file and fail a unit test not mentioned in the commit.
+		 * might check in a change to a source file and fail a unit test not mentioned in the commit which results in
+		 * effectively a broken link in the annotation file reference unfortunately.
 		 */
-		if (!fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
+		if (format.isWriteDetails() && !fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
 			textSb.append("* ");
 			appendEscapedMessage(textSb, fileResult.getMessage());
 			textSb.append(' ')
@@ -365,6 +368,7 @@ public class LambdaHandler implements RequestStreamHandler {
 
 	private void appendEscapedMessage(StringBuilder sb, String msg) {
 		int len = msg.length();
+		sb.append("<span style=\"color:red;\">");
 		for (int i = 0; i < len; i++) {
 			char ch = msg.charAt(i);
 			if (ch == '<') {
@@ -377,6 +381,7 @@ public class LambdaHandler implements RequestStreamHandler {
 				sb.append(ch);
 			}
 		}
+		sb.append("</span>");
 	}
 
 	private boolean validateSecret(String requestSecret, int installationId) {
@@ -454,6 +459,34 @@ public class LambdaHandler implements RequestStreamHandler {
 			return MessageDigest.getInstance(algorithm);
 		} catch (NoSuchAlgorithmException nsae) {
 			throw new RuntimeException("could not get " + algorithm + " instance", nsae);
+		}
+	}
+
+	/**
+	 * Format of the results that we post to github.
+	 */
+	private static enum GithubFormat {
+		DEFAULT,
+		// end
+		;
+
+		/**
+		 * Write failures and errors into the details if they aren't in the commit.
+		 */
+		public boolean isWriteDetails() {
+			return true;
+		}
+
+		/**
+		 * Find the format for our string returning {@link #DEFAULT} if not found.
+		 */
+		public static GithubFormat fromString(String str) {
+			for (GithubFormat format : values()) {
+				if (format.name().equalsIgnoreCase(str)) {
+					return format;
+				}
+			}
+			return DEFAULT;
 		}
 	}
 }
