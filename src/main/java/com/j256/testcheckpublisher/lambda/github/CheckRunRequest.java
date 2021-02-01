@@ -8,7 +8,7 @@ import java.util.List;
 import com.google.gson.annotations.SerializedName;
 
 /**
- * Information about a check-run that is posted to github.
+ * Information about a check-run that is posted to github. https://docs.github.com/en/rest/reference/checks#runs
  * 
  * @author graywatson
  */

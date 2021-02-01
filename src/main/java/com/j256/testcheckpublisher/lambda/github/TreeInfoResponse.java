@@ -2,6 +2,11 @@ package com.j256.testcheckpublisher.lambda.github;
 
 import com.google.gson.annotations.SerializedName;
 
+/**
+ * Get information about the file tree: https://docs.github.com/en/rest/reference/git#get-a-tree
+ * 
+ * @author graywatson
+ */
 public class TreeInfoResponse {
 
 	private String sha;

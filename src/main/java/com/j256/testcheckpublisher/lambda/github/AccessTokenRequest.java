@@ -2,7 +2,12 @@ package com.j256.testcheckpublisher.lambda.github;
 
 import com.google.gson.annotations.SerializedName;
 
-// https://api.github.com/app/installations/42/access_tokens
+/**
+ * Request for an an access-token:
+ * https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app
+ * 
+ * @author graywatson
+ */
 public class AccessTokenRequest {
 
 	@SerializedName("installation_id")
@@ -12,5 +17,10 @@ public class AccessTokenRequest {
 	public AccessTokenRequest(int installationId, String[] repositories) {
 		this.installationId = installationId;
 		this.repositories = repositories;
+	}
+
+	public AccessTokenRequest(int installationId, String repository) {
+		this.installationId = installationId;
+		this.repositories = new String[] { repository };
 	}
 }

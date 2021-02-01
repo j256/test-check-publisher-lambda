@@ -1,5 +1,6 @@
 package com.j256.testcheckpublisher.lambda;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -54,12 +55,23 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String INSTALLTION_ID_SECRET_ENV = "installation_id_secret";
 	private static final String SHA1_ALGORITHM = "SHA1";
 	private static final String INSTALLATION_PATH_PREFIX = "/install";
+	private static final String FILE_PATH_PREFIX = "/files/";
+	private static final int FILE_PATH_PREFIX_LENGTH = FILE_PATH_PREFIX.length();
+	private static final String FILE_RESOURCE_PREFIX = "files/";
 	private static final Pattern INSTALLATION_ID_QUERY_PATTERN = Pattern.compile(".*?installation_id=(\\d+).*");
-	private static final String INTEGREATION_NAME = "test-check-publisher";
+	private static final String INTEGREATION_NAME = "Test Check Publisher";
 
 	// XXX: need an old one too right?
 	private static volatile PrivateKey applicationKey;
 	private static volatile long installationIdSecret;
+	private static final Map<String, String> extToContentType = new HashMap<>();
+
+	static {
+		extToContentType.put("png", "image/png");
+		extToContentType.put("jpg", "image/jpeg");
+		extToContentType.put("html", "text/html");
+		extToContentType.put("txt", "text/plain");
+	}
 
 	@Override
 	public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
@@ -73,8 +85,11 @@ public class LambdaHandler implements RequestStreamHandler {
 		// PublishedTestResults results = new Gson().fromJson(reader, PublishedTestResults.class);
 		ApiGatewayRequest request = gson.fromJson(reader, ApiGatewayRequest.class);
 
-		if (request.getRawPath() != null && request.getRawPath().startsWith(INSTALLATION_PATH_PREFIX)) {
+		String rawPath = request.getRawPath();
+		if (rawPath != null && rawPath.startsWith(INSTALLATION_PATH_PREFIX)) {
 			handleInstallation(outputStream, logger, gson, request);
+		} else if (rawPath != null && rawPath.startsWith(FILE_PATH_PREFIX)) {
+			handleFile(outputStream, logger, gson, rawPath);
 		} else {
 			handleUploadTests(outputStream, logger, gson, request);
 		}
@@ -87,6 +102,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		html.append("<html>\n");
 		html.append("<head><title> Test Check Publisher Installation Information </title></head>\n");
 		html.append("<body>\n");
+		html.append("<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left;\" /> ");
 		html.append("<h1> Test Check Publisher Installation Information </h1>\n");
 
 		// installation_id=1234&setup_action=install
@@ -95,13 +111,16 @@ public class LambdaHandler implements RequestStreamHandler {
 			int installationId = Integer.parseInt(matcher.group(1));
 			html.append("<p> Thanks for installing the " + INTEGREATION_NAME
 					+ " integration.  You will need to add the following environment variable\n");
-			html.append("    info your continuous-integration system.  Please write this down: <p>\n");
+			html.append("    info your continuous-integration system.  Please save this: <p>\n");
 			String secret = createInstallationHash(installationId);
-			html.append("<p><code>")
+			html.append("<p><blockquote><code>")
 					.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
-					.append(" = ")
+					.append("=")
 					.append(secret)
-					.append("</code></p>");
+					.append("</code></blockquote></p>");
+			html.append("<p> For more information, please see the ");
+			html.append("<a href=\"https://github.com/apps/test-check-publisher\">" + INTEGREATION_NAME + " "
+					+ "application page</a>. </p>");
 		} else {
 			logger.log("installation query string in strange format: " + request.getRawQueryString() + "\n");
 			html.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
@@ -113,6 +132,48 @@ public class LambdaHandler implements RequestStreamHandler {
 		html.append("</html>\n");
 
 		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/html", html.toString());
+	}
+
+	private void handleFile(OutputStream outputStream, LambdaLogger logger, Gson gson, String path) throws IOException {
+
+		if (path.length() <= FILE_PATH_PREFIX_LENGTH) {
+			return;
+		}
+		String resourcePath = path.substring(FILE_PATH_PREFIX_LENGTH);
+		String filePath = FILE_RESOURCE_PREFIX + resourcePath;
+
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(filePath);) {
+			if (inputStream == null) {
+				writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain",
+						"File path not found: " + filePath);
+				return;
+			}
+			byte[] buf = new byte[4096];
+			while (true) {
+				int num = inputStream.read(buf);
+				if (num < 0) {
+					break;
+				}
+				baos.write(buf, 0, num);
+			}
+		}
+
+		Map<String, String> headerMap = Collections.emptyMap();
+		int index = resourcePath.lastIndexOf('.');
+		if (index > 0) {
+			String ext = resourcePath.substring(index + 1);
+			String contentType = extToContentType.get(ext);
+			if (contentType != null) {
+				headerMap = Collections.singletonMap("Content-Type", contentType);
+			}
+		}
+
+		String base64 = Base64.encodeBase64String(baos.toByteArray());
+		ApiGatewayResponse response = new ApiGatewayResponse(HttpStatus.SC_OK, null, headerMap, base64, true);
+		try (Writer writer = new OutputStreamWriter(outputStream);) {
+			gson.toJson(response, writer);
+		}
 	}
 
 	private void handleUploadTests(OutputStream outputStream, LambdaLogger logger, Gson gson, ApiGatewayRequest request)
@@ -301,8 +362,8 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 		output.sortAnnotations();
 
-		String title = output.getTestCount() + " tests, " + output.getErrorCount() + " errors, "
-				+ output.getFailureCount() + " failures";
+		String title = output.getTestCount() + " tests, " + output.getFailureCount() + " failures, "
+				+ output.getErrorCount() + " errors";
 		output.setTitle(title);
 		output.setText(textSb.toString());
 
@@ -346,10 +407,9 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * in effectively a broken link in the annotation file reference unfortunately.
 		 */
 		if (format.isWriteDetails() && !fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
+			// NOTE: html seems to be filtered here
 			textSb.append("* ");
-			textSb.append("<span style=\"color:red;\">");
 			appendEscapedMessage(textSb, fileResult.getMessage());
-			textSb.append("</span>");
 			textSb.append(' ')
 					.append("https://github.com/")
 					.append(owner)

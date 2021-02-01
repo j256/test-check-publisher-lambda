@@ -1,5 +1,10 @@
 package com.j256.testcheckpublisher.lambda.github;
 
+/**
+ * Response from the get commit command: https://docs.github.com/en/rest/reference/repos#get-a-commit
+ * 
+ * @author graywatson
+ */
 public class CommitInfoResponse {
 
 	private String sha;

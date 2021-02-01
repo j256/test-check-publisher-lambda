@@ -247,7 +247,7 @@ public class GithubClient {
 		post.addHeader(getBearerTokenHeader());
 		post.addHeader(ACCEPT_HEADER);
 
-		AccessTokenRequest request = new AccessTokenRequest(installationId, new String[] { repository });
+		AccessTokenRequest request = new AccessTokenRequest(installationId, repository);
 		post.setEntity(new StringEntity(gson.toJson(request)));
 
 		try (CloseableHttpResponse response = httpclient.execute(post)) {
