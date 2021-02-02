@@ -31,6 +31,9 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
+import com.j256.testcheckpublisher.lambda.ApiGatewayRequest.HttpContext;
+import com.j256.testcheckpublisher.lambda.ApiGatewayRequest.RequestContext;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckLevel;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
@@ -54,9 +57,14 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String PUBLISHER_PEM_ENV = "github_application_secret";
 	private static final String INSTALLTION_ID_SECRET_ENV = "installation_id_secret";
 	private static final String SHA1_ALGORITHM = "SHA1";
+
 	private static final String INSTALLATION_PATH_PREFIX = "/install";
-	private static final String FILE_PATH_PREFIX = "/files/";
-	private static final int FILE_PATH_PREFIX_LENGTH = FILE_PATH_PREFIX.length();
+	private static final String FILES_PATH_PREFIX = "/files/";
+	private static final int FILE_PATH_PREFIX_LENGTH = FILES_PATH_PREFIX.length();
+	private static final String RESULTS_PATH_PREFIX = "/results";
+	private static final String TEST_PATH_PREFIX = "/test";
+	private static final int TEST_PATH_PREFIX_LENGTH = TEST_PATH_PREFIX.length();
+
 	private static final String FILE_RESOURCE_PREFIX = "files/";
 	private static final Pattern INSTALLATION_ID_QUERY_PATTERN = Pattern.compile(".*?installation_id=(\\d+).*");
 	private static final String INTEGREATION_NAME = "Test Check Publisher";
@@ -86,12 +94,44 @@ public class LambdaHandler implements RequestStreamHandler {
 		ApiGatewayRequest request = gson.fromJson(reader, ApiGatewayRequest.class);
 
 		String rawPath = request.getRawPath();
-		if (rawPath != null && rawPath.startsWith(INSTALLATION_PATH_PREFIX)) {
+		if (rawPath == null || rawPath.length() == 0) {
+			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found");
+			logRequest(logger, request);
+			return;
+		}
+
+		// cut off any test prefix
+		if (rawPath.startsWith(TEST_PATH_PREFIX)) {
+			rawPath = rawPath.substring(TEST_PATH_PREFIX_LENGTH);
+		}
+
+		if (rawPath.startsWith(INSTALLATION_PATH_PREFIX)) {
 			handleInstallation(outputStream, logger, gson, request);
-		} else if (rawPath != null && rawPath.startsWith(FILE_PATH_PREFIX)) {
+		} else if (rawPath.startsWith(FILES_PATH_PREFIX)) {
 			handleFile(outputStream, logger, gson, rawPath);
-		} else {
+		} else if (rawPath.equals("/") || rawPath.startsWith(RESULTS_PATH_PREFIX)) {
 			handleUploadTests(outputStream, logger, gson, request);
+		} else {
+			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found: " + rawPath);
+		}
+		logRequest(logger, request);
+	}
+
+	private void logRequest(LambdaLogger logger, ApiGatewayRequest request) {
+		if (request == null) {
+			logger.log("request: is null");
+			return;
+		}
+		RequestContext context = request.getContext();
+		if (context == null) {
+			logger.log("request: request-context is null");
+			return;
+		}
+		HttpContext httpContext = context.getHttpContext();
+		if (httpContext == null) {
+			logger.log("request: http-context is null");
+		} else {
+			logger.log("request: " + httpContext.asString());
 		}
 	}
 
@@ -100,9 +140,10 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		StringBuilder html = new StringBuilder();
 		html.append("<html>\n");
-		html.append("<head><title> Test Check Publisher Installation Information </title></head>\n");
+		html.append("<head><title> Test Check Publisher Installation Details </title></head>\n");
+		html.append("<link rel=\"shortcut icon\" href=\"/files/logo.png\" />\n");
 		html.append("<body>\n");
-		html.append("<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left;\" /> ");
+		html.append("<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left; padding-right:5px;\" /> ");
 		html.append("<h1> Test Check Publisher Installation Information </h1>\n");
 
 		// installation_id=1234&setup_action=install
@@ -111,7 +152,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			int installationId = Integer.parseInt(matcher.group(1));
 			html.append("<p> Thanks for installing the " + INTEGREATION_NAME
 					+ " integration.  You will need to add the following environment variable\n");
-			html.append("    info your continuous-integration system.  Please save this: <p>\n");
+			html.append("    to your continuous-integration system. <p>\n");
 			String secret = createInstallationHash(installationId);
 			html.append("<p><blockquote><code>")
 					.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
@@ -170,23 +211,34 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		String base64 = Base64.encodeBase64String(baos.toByteArray());
-		ApiGatewayResponse response = new ApiGatewayResponse(HttpStatus.SC_OK, null, headerMap, base64, true);
-		try (Writer writer = new OutputStreamWriter(outputStream);) {
-			gson.toJson(response, writer);
-		}
+		writeResponse(outputStream, gson, HttpStatus.SC_OK, headerMap, base64, true);
 	}
 
 	private void handleUploadTests(OutputStream outputStream, LambdaLogger logger, Gson gson, ApiGatewayRequest request)
 			throws IOException {
 
 		String body = request.getBody();
+		if (body == null || body.length() == 0) {
+			// get requests should redirect
+			Map<String, String> headerMap =
+					Collections.singletonMap("Location", "https://github.com/apps/test-check-publisher");
+			writeResponse(outputStream, gson, HttpStatus.SC_MOVED_PERMANENTLY, headerMap, null, false);
+			return;
+		}
 
 		// the body is probably base64 encoded because it is json payload
 		if (request.isBodyBase64Encoded()) {
 			body = new String(Base64.decodeBase64(body));
 		}
 
-		PublishedTestResults publishedResults = gson.fromJson(body, PublishedTestResults.class);
+		PublishedTestResults publishedResults;
+		try {
+			publishedResults = gson.fromJson(body, PublishedTestResults.class);
+		} catch (JsonParseException jse) {
+			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain",
+					"Expecting published test results");
+			return;
+		}
 		if (publishedResults == null) {
 			// request sanity check failed
 			logger.log("got null results\n");
@@ -291,7 +343,12 @@ public class LambdaHandler implements RequestStreamHandler {
 	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, String contentType, String message)
 			throws IOException {
 		Map<String, String> headerMap = Collections.singletonMap("Content-Type", contentType);
-		ApiGatewayResponse response = new ApiGatewayResponse(statusCode, null, headerMap, message, false);
+		writeResponse(outputStream, gson, statusCode, headerMap, message, false);
+	}
+
+	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, Map<String, String> headerMap,
+			String message, boolean isBodyBase64Encoded) throws IOException {
+		ApiGatewayResponse response = new ApiGatewayResponse(statusCode, null, headerMap, message, isBodyBase64Encoded);
 		try (Writer writer = new OutputStreamWriter(outputStream);) {
 			gson.toJson(response, writer);
 		}

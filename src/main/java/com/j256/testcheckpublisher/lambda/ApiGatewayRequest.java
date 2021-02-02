@@ -50,7 +50,8 @@ public class ApiGatewayRequest {
 	public static class RequestContext {
 		private String domainName;
 		private String requestId;
-		private HttpContext http;
+		@SerializedName("http")
+		private HttpContext httpContext;
 
 		public String getDomainName() {
 			return domainName;
@@ -60,8 +61,8 @@ public class ApiGatewayRequest {
 			return requestId;
 		}
 
-		public HttpContext getHttp() {
-			return http;
+		public HttpContext getHttpContext() {
+			return httpContext;
 		}
 	}
 
@@ -89,6 +90,15 @@ public class ApiGatewayRequest {
 
 		public String getUserAgent() {
 			return userAgent;
+		}
+
+		public String asString() {
+			return "method '" + method + "', path '" + path + "', ip='" + sourceIp + "'";
+		}
+
+		@Override
+		public String toString() {
+			return "HttpContext [method=" + method + ", path=" + path + ", ip=" + sourceIp + "]";
 		}
 	}
 }
