@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.j256.testcheckpublisher</groupId>
 	<artifactId>test-check-publisher-lambda</artifactId>
-	<version>0.8-SNAPSHOT</version>
+	<version>0.9-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<url>https://github.com/j256/test-check-publisher-lambda</url>
 	<licenses>
@@ -120,7 +120,7 @@
 			<plugin>
 				<groupId>com.j256.testcheckpublisher</groupId>
 				<artifactId>test-check-publisher-maven-plugin</artifactId>
-				<version>0.7</version>
+				<version>0.8</version>
 			</plugin>
 		</plugins>
 		<pluginManagement>
@@ -167,7 +167,7 @@
 		<dependency>
 			<groupId>com.j256.testcheckpublisher</groupId>
 			<artifactId>test-check-publisher-maven-plugin</artifactId>
-			<version>${project.version}</version>
+			<version>0.8</version>
 			<exclusions>
 				<exclusion>
 					<groupId>com.fasterxml.jackson.dataformat</groupId>
