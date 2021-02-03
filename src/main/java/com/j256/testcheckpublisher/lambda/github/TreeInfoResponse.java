@@ -21,11 +21,24 @@ public class TreeInfoResponse {
 		return treeFiles;
 	}
 
+	/**
+	 * Information about a file in the tree. 
+	 */
 	public static class TreeFile {
 
 		private String path;
 		private String type;
 		private String sha;
+
+		public TreeFile() {
+			// for gson
+		}
+
+		public TreeFile(String path, String type, String sha) {
+			this.path = path;
+			this.type = type;
+			this.sha = sha;
+		}
 
 		public String getPath() {
 			return path;

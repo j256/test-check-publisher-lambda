@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -41,6 +43,8 @@ import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
 import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse;
 import com.j256.testcheckpublisher.lambda.github.CommitInfoResponse.ChangedFile;
 import com.j256.testcheckpublisher.lambda.github.GithubClient;
+import com.j256.testcheckpublisher.lambda.github.GithubClientImpl;
+import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 import com.j256.testcheckpublisher.plugin.PublishedTestResults;
 import com.j256.testcheckpublisher.plugin.TestCheckPubMojo;
 import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults;
@@ -56,7 +60,7 @@ public class LambdaHandler implements RequestStreamHandler {
 
 	private static final String PUBLISHER_PEM_ENV = "github_application_secret";
 	private static final String INSTALLTION_ID_SECRET_ENV = "installation_id_secret";
-	private static final String SHA1_ALGORITHM = "SHA1";
+	private static final String DIGEST_ALGORITHM = "SHA1";
 
 	private static final String INSTALLATION_PATH_PREFIX = "/install";
 	private static final String FILES_PATH_PREFIX = "/files/";
@@ -64,6 +68,8 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String RESULTS_PATH_PREFIX = "/results";
 	private static final String TEST_PATH_PREFIX = "/test";
 	private static final int TEST_PATH_PREFIX_LENGTH = TEST_PATH_PREFIX.length();
+	private static final String PROD_PATH_PREFIX = "/prod";
+	private static final int PROD_PATH_PREFIX_LENGTH = PROD_PATH_PREFIX.length();
 
 	private static final String FILE_RESOURCE_PREFIX = "files/";
 	private static final Pattern INSTALLATION_ID_QUERY_PATTERN = Pattern.compile(".*?installation_id=(\\d+).*");
@@ -73,6 +79,8 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static volatile PrivateKey applicationKey;
 	private static volatile long installationIdSecret;
 	private static final Map<String, String> extToContentType = new HashMap<>();
+
+	private GithubClient testGithub;
 
 	static {
 		extToContentType.put("png", "image/png");
@@ -92,6 +100,11 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		// PublishedTestResults results = new Gson().fromJson(reader, PublishedTestResults.class);
 		ApiGatewayRequest request = gson.fromJson(reader, ApiGatewayRequest.class);
+		if (request == null) {
+			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain", "Invalid request");
+			logger.log("gateway-request is null\n");
+			return;
+		}
 
 		String rawPath = request.getRawPath();
 		if (rawPath == null || rawPath.length() == 0) {
@@ -100,9 +113,11 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		// cut off any test prefix
+		// cut off any API prefix
 		if (rawPath.startsWith(TEST_PATH_PREFIX)) {
 			rawPath = rawPath.substring(TEST_PATH_PREFIX_LENGTH);
+		} else if (rawPath.startsWith(PROD_PATH_PREFIX)) {
+			rawPath = rawPath.substring(PROD_PATH_PREFIX_LENGTH);
 		}
 
 		if (rawPath.startsWith(INSTALLATION_PATH_PREFIX)) {
@@ -117,21 +132,35 @@ public class LambdaHandler implements RequestStreamHandler {
 		logRequest(logger, request);
 	}
 
+	/**
+	 * For testing purposes.
+	 */
+	public static void setApplicationKey(PrivateKey applicationKey) {
+		LambdaHandler.applicationKey = applicationKey;
+	}
+
+	/**
+	 * For testing purposes.
+	 */
+	public static void setInstallationIdSecret(long installationIdSecret) {
+		LambdaHandler.installationIdSecret = installationIdSecret;
+	}
+
+	public void setTestGithub(GithubClient testGithub) {
+		this.testGithub = testGithub;
+	}
+
 	private void logRequest(LambdaLogger logger, ApiGatewayRequest request) {
-		if (request == null) {
-			logger.log("request: is null");
-			return;
-		}
 		RequestContext context = request.getContext();
 		if (context == null) {
-			logger.log("request: request-context is null");
+			logger.log("request: request-context is null\n");
 			return;
 		}
 		HttpContext httpContext = context.getHttpContext();
 		if (httpContext == null) {
-			logger.log("request: http-context is null");
+			logger.log("request: http-context is null\n");
 		} else {
-			logger.log("request: " + httpContext.asString());
+			logger.log("request: " + httpContext.asString() + "\n");
 		}
 	}
 
@@ -143,36 +172,58 @@ public class LambdaHandler implements RequestStreamHandler {
 		html.append("<head><title> Test Check Publisher Installation Details </title></head>\n");
 		html.append("<link rel=\"shortcut icon\" href=\"/files/logo.png\" />\n");
 		html.append("<body>\n");
-		html.append("<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left; padding-right:5px;\" /> ");
+		html.append(
+				"<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left; padding-right:5px;\" /> ");
 		html.append("<h1> Test Check Publisher Installation Information </h1>\n");
 
-		// installation_id=1234&setup_action=install
-		Matcher matcher = INSTALLATION_ID_QUERY_PATTERN.matcher(request.getRawQueryString());
-		if (matcher.matches()) {
-			int installationId = Integer.parseInt(matcher.group(1));
-			html.append("<p> Thanks for installing the " + INTEGREATION_NAME
-					+ " integration.  You will need to add the following environment variable\n");
-			html.append("    to your continuous-integration system. <p>\n");
-			String secret = createInstallationHash(installationId);
-			html.append("<p><blockquote><code>")
-					.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
-					.append("=")
-					.append(secret)
-					.append("</code></blockquote></p>");
-			html.append("<p> For more information, please see the ");
-			html.append("<a href=\"https://github.com/apps/test-check-publisher\">" + INTEGREATION_NAME + " "
-					+ "application page</a>. </p>");
-		} else {
-			logger.log("installation query string in strange format: " + request.getRawQueryString() + "\n");
-			html.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
-			html.append("    reinstalling the " + INTEGREATION_NAME
-					+ " integration to your repository.  Sorry about that. <p>\n");
-		}
+		handleInstallBody(logger, request, html);
 
 		html.append("</body>\n");
 		html.append("</html>\n");
 
 		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/html", html.toString());
+	}
+
+	private void handleInstallBody(LambdaLogger logger, ApiGatewayRequest request, StringBuilder html) {
+		// installation_id=1234&setup_action=install
+		Matcher matcher = INSTALLATION_ID_QUERY_PATTERN.matcher(request.getRawQueryString());
+		if (!matcher.matches()) {
+			logger.log("installation query string in strange format: " + request.getRawQueryString() + "\n");
+			html.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
+			html.append("    reinstalling the " + INTEGREATION_NAME
+					+ " integration to your repository.  Sorry about that. <p>\n");
+			return;
+		}
+		String installationIdStr = matcher.group(1);
+
+		int installationId;
+		try {
+			installationId = Integer.parseInt(installationIdStr);
+		} catch (NumberFormatException nfe) {
+			logger.log("installation-id does not parse: " + installationIdStr + "\n");
+			html.append("<p> Sorry.  The installation-id is not in the format that I expected.  Please try deleting\n");
+			html.append("    and reinstalling the " + INTEGREATION_NAME
+					+ " integration to your repository.  Sorry about that. <p>\n");
+			return;
+		}
+		String secret = createInstallationHash(logger, installationId);
+		if (secret == null) {
+			logger.log("installation hash generated as null for: " + installationId + "\n");
+			html.append("<p> There is some sort of error in the server configuration.  Sorry about that. <p>\n");
+			return;
+		}
+
+		html.append("<p> Thanks for installing the " + INTEGREATION_NAME
+				+ " integration.  You will need to add the following environment variable\n");
+		html.append("    to your continuous-integration system. <p>\n");
+		html.append("<p><blockquote><code>")
+				.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
+				.append("=")
+				.append(secret)
+				.append("</code></blockquote></p>");
+		html.append("<p> For more information, please see the ");
+		html.append("<a href=\"https://github.com/apps/test-check-publisher\">" + INTEGREATION_NAME + " "
+				+ "application page</a>. </p>");
 	}
 
 	private void handleFile(OutputStream outputStream, LambdaLogger logger, Gson gson, String path) throws IOException {
@@ -257,22 +308,38 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		logger.log(publishedResults.getOwner() + "/" + repository + "@" + publishedResults.getCommitSha() + "\n");
 
-		CloseableHttpClient httpclient = HttpClients.createDefault();
+		PrivateKey applicationKey = getApplicationKey(logger);
+		if (applicationKey == null) {
+			// already logged
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Application key failure");
+			return;
+		}
 
-		GithubClient github =
-				new GithubClient(httpclient, publishedResults.getOwner(), repository, getApplicationKey(), logger);
+		CloseableHttpClient httpclient = HttpClients.createDefault();
+		GithubClient github = testGithub;
+		if (github == null) {
+			github = GithubClientImpl.createClient(httpclient, publishedResults.getOwner(), repository, applicationKey,
+					logger);
+			if (github == null) {
+				// already logged
+				writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+						"Github client create failure");
+				return;
+			}
+		}
 
 		// lookup our installation-id and verify our secret
 		int installationId = github.findInstallationId();
 		if (installationId <= 0) {
 			logger.log(repository + ": no installation-id\n");
-			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain",
+			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
 					"Could not find installation for application in repository " + repository
 							+ ".  You should reinstall the " + INTEGREATION_NAME + " integration.");
 			return;
 		}
 
-		if (!validateSecret(publishedResults.getSecret(), installationId)) {
+		if (!validateSecret(logger, publishedResults.getSecret(), installationId)) {
 			logger.log(repository + ": secret did not validate\n");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
 					"The secret environmental variable value did not validate.  You may need to reinstall " + "the "
@@ -307,24 +374,20 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		// list all of the files at the commit point
-		Collection<FileInfo> fileInfos = github.requestTreeFiles(commitInfo.getTreeSha());
-		if (fileInfos == null) {
+		Collection<TreeFile> treeFiles = github.requestTreeFiles(commitInfo.getTreeSha());
+		if (treeFiles == null) {
 			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
 					"Could not get tree file information for tree sha " + commitInfo.getTreeSha() + ": "
 							+ github.getLastStatusLine());
 			return;
-		}
-		for (FileInfo fileInfo : fileInfos) {
-			if (commitPathSet.contains(fileInfo.getPath())) {
-				fileInfo.setInCommit(true);
-			}
 		}
 
 		FrameworkTestResults frameworkResults = publishedResults.getResults();
 		GithubFormat format = GithubFormat.fromString(frameworkResults.getFormat());
 
 		// create the check-run request
-		CheckRunOutput output = createRequest(logger, publishedResults, fileInfos, frameworkResults, format);
+		CheckRunOutput output =
+				createRequest(logger, publishedResults, treeFiles, commitPathSet, frameworkResults, format);
 		CheckRunRequest checkRunRequest =
 				new CheckRunRequest(frameworkResults.getName(), publishedResults.getCommitSha(), output);
 
@@ -336,8 +399,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		logger.log(repository + ": posted check-run " + output.getTitle() + "\n");
-		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/plain",
-				"Check-run posted to github: " + github.getLastStatusLine());
+		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/plain", "Check-run posted to github.");
 	}
 
 	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, String contentType, String message)
@@ -355,7 +417,8 @@ public class LambdaHandler implements RequestStreamHandler {
 	}
 
 	private CheckRunOutput createRequest(LambdaLogger logger, PublishedTestResults publishedResults,
-			Collection<FileInfo> fileInfos, FrameworkTestResults frameworkResults, GithubFormat format) {
+			Collection<TreeFile> treeFiles, Set<String> commitPathSet, FrameworkTestResults frameworkResults,
+			GithubFormat format) {
 
 		String owner = publishedResults.getOwner();
 		String repository = publishedResults.getRepository();
@@ -368,8 +431,9 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * hierarchy and we don't want to read all files looking for package ...
 		 */
 		Map<String, FileInfo> nameMap = new HashMap<>();
-		for (FileInfo fileInfo : fileInfos) {
-			String path = fileInfo.getPath();
+		for (TreeFile treeFile : treeFiles) {
+			String path = treeFile.getPath();
+			FileInfo fileInfo = new FileInfo(path, treeFile.getSha(), commitPathSet.contains(treeFile.getPath()));
 			nameMap.put(path, fileInfo);
 			nameMap.put(fileInfo.getName(), fileInfo);
 			int index = 0;
@@ -498,18 +562,34 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private boolean validateSecret(String requestSecret, int installationId) {
-		String digest = createInstallationHash(installationId);
-		return (digest.equals(requestSecret));
+	private boolean validateSecret(LambdaLogger logger, String requestSecret, int installationId) {
+		String digest = createInstallationHash(logger, installationId);
+		return (digest != null && digest.equals(requestSecret));
 	}
 
-	private String createInstallationHash(int installationId) {
-		long secret = getInstallationIdSecret();
+	String createInstallationHash(LambdaLogger logger, int installationId) {
+		long secret = getInstallationIdSecret(logger);
+		if (secret <= 0) {
+			// already logged
+			return null;
+		}
 		long value = installationId ^ secret;
-		return sha1Digest(Long.toString(value));
+
+		MessageDigest digest;
+		try {
+			digest = MessageDigest.getInstance(DIGEST_ALGORITHM);
+		} catch (NoSuchAlgorithmException nsae) {
+			logger.log("could not get " + DIGEST_ALGORITHM + " instance\n");
+			logger.log(throwableToString(nsae));
+			return null;
+		}
+
+		digest.reset();
+		digest.update(Long.toString(value).getBytes());
+		return bytesToHex(digest.digest());
 	}
 
-	private PrivateKey getApplicationKey() throws IOException {
+	private PrivateKey getApplicationKey(LambdaLogger logger) throws IOException {
 		PrivateKey key = applicationKey;
 		if (key != null) {
 			return key;
@@ -520,60 +600,64 @@ public class LambdaHandler implements RequestStreamHandler {
 			if (key != null) {
 				return key;
 			}
-			try {
-				key = loadKey();
-			} catch (GeneralSecurityException gse) {
-				throw new IOException("problems processing pem key from ssm", gse);
+			key = loadKey(logger);
+			if (key != null) {
+				applicationKey = key;
 			}
-			applicationKey = key;
 			return key;
 		}
 	}
 
-	private long getInstallationIdSecret() {
+	private long getInstallationIdSecret(LambdaLogger logger) {
 		long secret = installationIdSecret;
 		if (secret != 0) {
 			return secret;
 		}
 		String secretStr = System.getenv(INSTALLTION_ID_SECRET_ENV);
 		if (secretStr == null) {
-			throw new IllegalStateException("secret env value is null: " + INSTALLTION_ID_SECRET_ENV);
+			logger.log("secret env value is null: " + INSTALLTION_ID_SECRET_ENV + "\n");
+			return -1;
 		}
 		try {
 			secret = Long.parseLong(secretStr);
 		} catch (NumberFormatException nfe) {
 			// we do't chain the exception to not expose the secret string in the logs
-			throw new NumberFormatException("Could not parse long secret string");
+			logger.log("Could not parse long secret string from: " + INSTALLTION_ID_SECRET_ENV + "\n");
+			return -1;
 		}
 		installationIdSecret = secret;
 		return secret;
 	}
 
-	private PrivateKey loadKey() throws IOException, GeneralSecurityException {
+	private PrivateKey loadKey(LambdaLogger logger) throws IOException {
 		String pem = System.getenv(PUBLISHER_PEM_ENV);
 		if (pem == null) {
-			throw new IOException("publisher secret env is null");
+			logger.log("publisher secret env is null\n");
+			return null;
 		}
-		return KeyHandling.readKey(pem);
+		try {
+			return KeyHandling.readKey(pem);
+		} catch (GeneralSecurityException gse) {
+			logger.log("problems loading application-key from pem env\n");
+			logger.log(throwableToString(gse));
+			return null;
+		}
 	}
 
-	private static String sha1Digest(String str) {
-		MessageDigest digest = createInstance(SHA1_ALGORITHM);
-		digest.reset();
-		digest.update(str.getBytes());
-		return bytesToHex(digest.digest());
+	private static String throwableToString(Throwable throwable) {
+		if (throwable == null) {
+			return null;
+		}
+
+		StringWriter writer = new StringWriter();
+		try (PrintWriter printWriter = new PrintWriter(writer);) {
+			throwable.printStackTrace(printWriter);
+		}
+		return writer.toString();
 	}
 
 	private static String bytesToHex(byte[] digest) {
 		return new String(Hex.encodeHex(digest));
-	}
-
-	private static MessageDigest createInstance(String algorithm) {
-		try {
-			return MessageDigest.getInstance(algorithm);
-		} catch (NoSuchAlgorithmException nsae) {
-			throw new IllegalStateException("could not get " + algorithm + " instance", nsae);
-		}
 	}
 
 	/**

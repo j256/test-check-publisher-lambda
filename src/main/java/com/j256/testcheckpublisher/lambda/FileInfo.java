@@ -12,9 +12,9 @@ public class FileInfo {
 	private final String path;
 	private final String name;
 	private final String sha;
-	private boolean inCommit;
+	private final boolean inCommit;
 
-	public FileInfo(String path, String sha) {
+	public FileInfo(String path, String sha, boolean inCommit) {
 		this.path = path;
 		// extract our file-name
 		int index = path.lastIndexOf(File.separatorChar);
@@ -24,6 +24,7 @@ public class FileInfo {
 			this.name = path;
 		}
 		this.sha = sha;
+		this.inCommit = inCommit;
 	}
 
 	public String getPath() {
@@ -40,10 +41,6 @@ public class FileInfo {
 
 	public boolean isInCommit() {
 		return inCommit;
-	}
-
-	public void setInCommit(boolean inCommit) {
-		this.inCommit = inCommit;
 	}
 
 	@Override

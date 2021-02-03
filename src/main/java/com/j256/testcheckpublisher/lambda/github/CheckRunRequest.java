@@ -33,6 +33,49 @@ public class CheckRunRequest {
 		}
 	}
 
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = prime + ((conclusion == null) ? 0 : conclusion.hashCode());
+		result = prime * result + ((name == null) ? 0 : name.hashCode());
+		result = prime * result + ((output == null) ? 0 : output.hashCode());
+		result = prime * result + ((sha == null) ? 0 : sha.hashCode());
+		result = prime * result + ((status == null) ? 0 : status.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (obj == null || getClass() != obj.getClass()) {
+			return false;
+		}
+		CheckRunRequest other = (CheckRunRequest) obj;
+		if (conclusion != other.conclusion) {
+			return false;
+		} else if (name == null) {
+			if (other.name != null) {
+				return false;
+			}
+		} else if (!name.equals(other.name)) {
+			return false;
+		}
+		if (output == null) {
+			if (other.output != null) {
+				return false;
+			}
+		} else if (!output.equals(other.output)) {
+			return false;
+		}
+		if (sha == null) {
+			if (other.sha != null) {
+				return false;
+			}
+		} else if (!sha.equals(other.sha)) {
+			return false;
+		}
+		return (status == other.status);
+	}
+
 	/**
 	 * Output of the check run.
 	 */
@@ -41,11 +84,25 @@ public class CheckRunRequest {
 		String title = "";
 		String summary = "";
 		String text = "";
+		List<CheckRunAnnotation> annotations;
 		transient int testCount;
 		transient int failureCount;
 		transient int errorCount;
 
-		List<CheckRunAnnotation> annotations;
+		public CheckRunOutput() {
+			// for gson
+		}
+
+		public CheckRunOutput(String title, String summary, String text, List<CheckRunAnnotation> annotations,
+				int testCount, int failureCount, int errorCount) {
+			this.title = title;
+			this.summary = summary;
+			this.text = text;
+			this.annotations = annotations;
+			this.testCount = testCount;
+			this.failureCount = failureCount;
+			this.errorCount = errorCount;
+		}
 
 		public Collection<CheckRunAnnotation> getAnnotations() {
 			return annotations;
@@ -97,6 +154,65 @@ public class CheckRunRequest {
 		public void setText(String text) {
 			this.text = text;
 		}
+
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = prime + ((annotations == null) ? 0 : annotations.hashCode());
+			result = prime * result + errorCount;
+			result = prime * result + failureCount;
+			result = prime * result + ((summary == null) ? 0 : summary.hashCode());
+			result = prime * result + testCount;
+			result = prime * result + ((text == null) ? 0 : text.hashCode());
+			result = prime * result + ((title == null) ? 0 : title.hashCode());
+			return result;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (obj == null || getClass() != obj.getClass()) {
+				return false;
+			}
+			CheckRunOutput other = (CheckRunOutput) obj;
+			if (annotations == null) {
+				if (other.annotations != null) {
+					return false;
+				}
+			} else if (!annotations.equals(other.annotations)) {
+				return false;
+			}
+			if (errorCount != other.errorCount) {
+				return false;
+			}
+			if (failureCount != other.failureCount) {
+				return false;
+			}
+			if (testCount != other.testCount) {
+				return false;
+			}
+			if (summary == null) {
+				if (other.summary != null) {
+					return false;
+				}
+			} else if (!summary.equals(other.summary)) {
+				return false;
+			}
+			if (text == null) {
+				if (other.text != null) {
+					return false;
+				}
+			} else if (!text.equals(other.text)) {
+				return false;
+			}
+			if (title == null) {
+				if (other.title != null) {
+					return false;
+				}
+			} else if (!title.equals(other.title)) {
+				return false;
+			}
+			return true;
+		}
 	}
 
 	/**
@@ -139,6 +255,73 @@ public class CheckRunRequest {
 		public int compareTo(CheckRunAnnotation other) {
 			// we want higher levels first
 			return other.level.compareValues(level);
+		}
+
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = prime + ((details == null) ? 0 : details.hashCode());
+			result = prime * result + endColumn;
+			result = prime * result + endLine;
+			result = prime * result + ((level == null) ? 0 : level.hashCode());
+			result = prime * result + ((message == null) ? 0 : message.hashCode());
+			result = prime * result + ((path == null) ? 0 : path.hashCode());
+			result = prime * result + startColumn;
+			result = prime * result + startLine;
+			result = prime * result + ((title == null) ? 0 : title.hashCode());
+			return result;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (obj == null || getClass() != obj.getClass()) {
+				return false;
+			}
+			CheckRunAnnotation other = (CheckRunAnnotation) obj;
+			if (details == null) {
+				if (other.details != null) {
+					return false;
+				}
+			} else if (!details.equals(other.details)) {
+				return false;
+			}
+			if (endColumn != other.endColumn) {
+				return false;
+			}
+			if (endLine != other.endLine) {
+				return false;
+			}
+			if (level != other.level) {
+				return false;
+			}
+			if (message == null) {
+				if (other.message != null) {
+					return false;
+				}
+			} else if (!message.equals(other.message)) {
+				return false;
+			}
+			if (path == null) {
+				if (other.path != null) {
+					return false;
+				}
+			} else if (!path.equals(other.path)) {
+				return false;
+			}
+			if (startColumn != other.startColumn) {
+				return false;
+			}
+			if (startLine != other.startLine) {
+				return false;
+			}
+			if (title == null) {
+				if (other.title != null) {
+					return false;
+				}
+			} else if (!title.equals(other.title)) {
+				return false;
+			}
+			return true;
 		}
 	}
 

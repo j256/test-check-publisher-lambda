@@ -20,6 +20,20 @@ public class ApiGatewayRequest {
 	@SerializedName("isBase64Encoded")
 	private boolean isBodyBase64Encoded;
 
+	public ApiGatewayRequest() {
+		// for gson
+	}
+
+	public ApiGatewayRequest(String rawPath, String rawQueryString, Map<String, String> headers, RequestContext context,
+			String body, boolean isBodyBase64Encoded) {
+		this.rawPath = rawPath;
+		this.rawQueryString = rawQueryString;
+		this.headers = headers;
+		this.context = context;
+		this.body = body;
+		this.isBodyBase64Encoded = isBodyBase64Encoded;
+	}
+
 	public String getRawPath() {
 		return rawPath;
 	}
@@ -53,6 +67,16 @@ public class ApiGatewayRequest {
 		@SerializedName("http")
 		private HttpContext httpContext;
 
+		public RequestContext() {
+			// for gson
+		}
+
+		public RequestContext(String domainName, String requestId, HttpContext httpContext) {
+			this.domainName = domainName;
+			this.requestId = requestId;
+			this.httpContext = httpContext;
+		}
+
 		public String getDomainName() {
 			return domainName;
 		}
@@ -75,6 +99,17 @@ public class ApiGatewayRequest {
 		private String path;
 		private String sourceIp;
 		private String userAgent;
+
+		public HttpContext() {
+			// for gson
+		}
+
+		public HttpContext(String method, String path, String sourceIp, String userAgent) {
+			this.method = method;
+			this.path = path;
+			this.sourceIp = sourceIp;
+			this.userAgent = userAgent;
+		}
 
 		public String getMethod() {
 			return method;
