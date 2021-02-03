@@ -117,6 +117,11 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>com.j256.testcheckpublisher</groupId>
+				<artifactId>test-check-publisher-maven-plugin</artifactId>
+				<version>0.7</version>
+			</plugin>
 		</plugins>
 		<pluginManagement>
 			<plugins>
