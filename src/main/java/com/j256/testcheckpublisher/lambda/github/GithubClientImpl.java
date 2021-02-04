@@ -54,6 +54,7 @@ public class GithubClientImpl implements GithubClient {
 	private final String repository;
 	private final PrivateKey applicationKey;
 	private final LambdaLogger logger;
+	private final String label;
 
 	private final Gson gson = new Gson();
 	private int installationId;
@@ -66,21 +67,22 @@ public class GithubClientImpl implements GithubClient {
 	}
 
 	private GithubClientImpl(CloseableHttpClient httpclient, String owner, String repository, PrivateKey applicationKey,
-			LambdaLogger logger) {
+			LambdaLogger logger, String label) {
 		this.httpclient = httpclient;
 		this.owner = owner;
 		this.repository = repository;
 		this.applicationKey = applicationKey;
 		this.logger = logger;
+		this.label = label;
 	}
 
 	public static GithubClientImpl createClient(CloseableHttpClient httpclient, String owner, String repository,
-			PrivateKey applicationKey, LambdaLogger logger) {
+			PrivateKey applicationKey, LambdaLogger logger, String label) {
 		if (githubAppId == null) {
-			logger.log("Could not find github-app-id env variable\n");
+			logger.log("ERROR: Could not find github-app-id env variable\n");
 			return null;
 		} else {
-			return new GithubClientImpl(httpclient, owner, repository, applicationKey, logger);
+			return new GithubClientImpl(httpclient, owner, repository, applicationKey, logger, label);
 		}
 	}
 
@@ -98,7 +100,7 @@ public class GithubClientImpl implements GithubClient {
 
 			lastStatusLine = response.getStatusLine();
 			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
-				logger.log(repository + ": installation request failed: " + response.getStatusLine() + "\n");
+				logger.log(label + ": ERROR: installation request failed: " + response.getStatusLine() + "\n");
 				return -1;
 			}
 
@@ -106,12 +108,12 @@ public class GithubClientImpl implements GithubClient {
 			try {
 				idResponse = gson.fromJson(new InputStreamReader(response.getEntity().getContent()), IdResponse.class);
 			} catch (JsonParseException jpe) {
-				logger.log(repository + ": installation response json parse failed\n");
+				logger.log(label + ": ERROR: installation response json parse failed\n");
 				return -1;
 			}
 			int installationId = idResponse.getId();
 			if (installationId <= 0) {
-				logger.log(repository + ": installation request json returned: " + installationId + "\n");
+				logger.log(label + ": ERROR: installation request json returned: " + installationId + "\n");
 				return -1;
 			} else {
 				this.installationId = installationId;
@@ -138,7 +140,7 @@ public class GithubClientImpl implements GithubClient {
 			if (lastStatusLine.getStatusCode() == HttpStatus.SC_OK) {
 				return gson.fromJson(contentReader, CommitInfoResponse.class);
 			} else {
-				logger.log(repository + ": commit-info request failed: " + response.getStatusLine() + "\n");
+				logger.log(label + ": ERROR: commit-info request failed: " + response.getStatusLine() + "\n");
 				return null;
 			}
 		}
@@ -159,7 +161,7 @@ public class GithubClientImpl implements GithubClient {
 
 			lastStatusLine = response.getStatusLine();
 			if (lastStatusLine.getStatusCode() != HttpStatus.SC_OK) {
-				logger.log(repository + ": tree request failed: " + response.getStatusLine() + "\n");
+				logger.log(repository + ": ERROR: tree request failed: " + response.getStatusLine() + "\n");
 				return null;
 			}
 
@@ -222,8 +224,8 @@ public class GithubClientImpl implements GithubClient {
 			if (lastStatusLine.getStatusCode() == HttpStatus.SC_CREATED) {
 				return true;
 			} else {
-				logger.log(repository + ": check-runs request failed: " + response.getStatusLine() + "\n");
-				logger.log("results: " + responseToString(response) + "\n");
+				logger.log(label + ": ERROR: check-runs request failed: " + response.getStatusLine() + "\n");
+				logger.log(label + ": ERROR: results: " + responseToString(response) + "\n");
 				return false;
 			}
 		}
