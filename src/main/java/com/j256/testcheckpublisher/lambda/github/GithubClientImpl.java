@@ -211,6 +211,11 @@ public class GithubClientImpl implements GithubClient {
 		return doCheckRunPost(request);
 	}
 
+	@Override
+	public StatusLine getLastStatusLine() {
+		return lastStatusLine;
+	}
+
 	private boolean doCheckRunPost(CheckRunRequest request)
 			throws IOException, UnsupportedEncodingException, ClientProtocolException {
 		HttpPost post = new HttpPost("https://api.github.com/repos/" + owner + "/" + repository + "/check-runs");
@@ -229,11 +234,6 @@ public class GithubClientImpl implements GithubClient {
 				return false;
 			}
 		}
-	}
-
-	@Override
-	public StatusLine getLastStatusLine() {
-		return lastStatusLine;
 	}
 
 	private String responseToString(CloseableHttpResponse response) throws IOException {

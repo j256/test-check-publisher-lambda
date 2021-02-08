@@ -63,7 +63,7 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String DIGEST_ALGORITHM = "SHA1";
 
 	private static final String INSTALLATION_PATH_PREFIX = "/install";
-	private static final String FILES_PATH_PREFIX = "/files/";
+	private static final String FILES_PATH_PREFIX = "/files";
 	private static final int FILE_PATH_PREFIX_LENGTH = FILES_PATH_PREFIX.length();
 	private static final String RESULTS_PATH_PREFIX = "/results";
 	private static final String TEST_PATH_PREFIX = "/test";
@@ -71,9 +71,10 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static final String PROD_PATH_PREFIX = "/prod";
 	private static final int PROD_PATH_PREFIX_LENGTH = PROD_PATH_PREFIX.length();
 
-	private static final String FILE_RESOURCE_PREFIX = "files/";
+	private static final String FILE_RESOURCE_PREFIX = "files";
 	private static final Pattern INSTALLATION_ID_QUERY_PATTERN = Pattern.compile(".*?installation_id=(\\d+).*");
 	private static final String INTEGREATION_NAME = "Test Check Publisher";
+	private static final String APP_HOME_PAGE = "https://github.com/apps/test-check-publisher";
 
 	// XXX: need an old one too right?
 	private static volatile PrivateKey applicationKey;
@@ -88,7 +89,11 @@ public class LambdaHandler implements RequestStreamHandler {
 		extToContentType.put("jpg", "image/jpeg");
 		extToContentType.put("html", "text/html");
 		extToContentType.put("txt", "text/plain");
-		// try to warm up the various classes
+		/*
+		 * Try to warm up the various classes by accessing as many classes as we can. Supposedly the CPU given at init
+		 * is higher than during runtime so things run faster. Startup used to take ~15 seconds and now take ~3. Big
+		 * win. This will try to make a request and fail but that part of it should be cheap.
+		 */
 		try {
 			NullLogger nullLogger = new NullLogger();
 			GithubClient github = GithubClientImpl.createClient(httpclient, "init", "init",
@@ -118,28 +123,28 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		String rawPath = request.getRawPath();
-		if (rawPath == null || rawPath.length() == 0) {
+		String path = request.getRawPath();
+		if (path == null || path.length() == 0) {
 			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found");
 			logRequest(logger, request);
 			return;
 		}
 
 		// cut off any API prefix
-		if (rawPath.startsWith(TEST_PATH_PREFIX)) {
-			rawPath = rawPath.substring(TEST_PATH_PREFIX_LENGTH);
-		} else if (rawPath.startsWith(PROD_PATH_PREFIX)) {
-			rawPath = rawPath.substring(PROD_PATH_PREFIX_LENGTH);
+		if (path.startsWith(TEST_PATH_PREFIX)) {
+			path = path.substring(TEST_PATH_PREFIX_LENGTH);
+		} else if (path.startsWith(PROD_PATH_PREFIX)) {
+			path = path.substring(PROD_PATH_PREFIX_LENGTH);
 		}
 
-		if (rawPath.startsWith(INSTALLATION_PATH_PREFIX)) {
+		if (path.startsWith(INSTALLATION_PATH_PREFIX)) {
 			handleInstallation(outputStream, logger, gson, request);
-		} else if (rawPath.startsWith(FILES_PATH_PREFIX)) {
-			handleFile(outputStream, logger, gson, rawPath);
-		} else if (rawPath.equals("/") || rawPath.startsWith(RESULTS_PATH_PREFIX)) {
+		} else if (path.startsWith(FILES_PATH_PREFIX)) {
+			handleFile(outputStream, logger, gson, path);
+		} else if (path.equals("/") || path.startsWith(RESULTS_PATH_PREFIX)) {
 			handleUploadTests(outputStream, logger, gson, request);
 		} else {
-			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found: " + rawPath);
+			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found: " + path);
 		}
 		logRequest(logger, request);
 	}
@@ -163,7 +168,7 @@ public class LambdaHandler implements RequestStreamHandler {
 	}
 
 	private void logRequest(LambdaLogger logger, ApiGatewayRequest request) {
-		RequestContext context = request.getContext();
+		RequestContext context = request.getRequestContext();
 		if (context == null) {
 			logger.log("ERROR: request: request-context is null\n");
 			return;
@@ -182,14 +187,16 @@ public class LambdaHandler implements RequestStreamHandler {
 		StringBuilder html = new StringBuilder();
 		html.append("<html>\n");
 		html.append("<head><title> Test Check Publisher Installation Details </title></head>\n");
-		html.append("<link rel=\"shortcut icon\" href=\"/files/logo.png\" />\n");
+		html.append("<link rel=\"shortcut icon\" href=\"" + FILES_PATH_PREFIX + "/logo.png\" />\n");
 		html.append("<body>\n");
-		html.append(
-				"<img src=\"/files/logo.png\" height=50 width=50 alt=\"logo\" style=\"float:left; padding-right:5px;\" /> ");
+		html.append("<img src=\"" + FILES_PATH_PREFIX
+				+ "/logo.png\" height=35 width=35 alt=\"Test check logo\" style=\"float:left; padding-right:5px;\" /> ");
 		html.append("<h1> Test Check Publisher Installation Information </h1>\n");
 
 		handleInstallBody(logger, request, html);
 
+		html.append("<p> For more installation information, please see the ");
+		html.append("<a href=\"" + APP_HOME_PAGE + "\">" + INTEGREATION_NAME + " " + "application page</a>. </p>");
 		html.append("</body>\n");
 		html.append("</html>\n");
 
@@ -234,9 +241,6 @@ public class LambdaHandler implements RequestStreamHandler {
 				.append("=")
 				.append(secret)
 				.append("</code></blockquote></p>");
-		html.append("<p> For more information, please see the ");
-		html.append("<a href=\"https://github.com/apps/test-check-publisher\">" + INTEGREATION_NAME + " "
-				+ "application page</a>. </p>");
 	}
 
 	private void handleFile(OutputStream outputStream, LambdaLogger logger, Gson gson, String path) throws IOException {
@@ -284,8 +288,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		String body = request.getBody();
 		if (body == null || body.length() == 0) {
 			// get requests should redirect
-			Map<String, String> headerMap =
-					Collections.singletonMap("Location", "https://github.com/apps/test-check-publisher");
+			Map<String, String> headerMap = Collections.singletonMap("Location", APP_HOME_PAGE);
 			writeResponse(outputStream, gson, HttpStatus.SC_MOVED_PERMANENTLY, headerMap, null, false);
 			return;
 		}

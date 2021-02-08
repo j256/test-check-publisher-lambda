@@ -431,7 +431,7 @@ public class LambdaHandlerTest {
 
 	private ApiGatewayRequest createRequest(String rawPath, String rawQueryString, String body,
 			boolean isBodyBase64Encoded) {
-		HttpContext httpContext = new HttpContext("method", "path", "source-ip", "agent");
+		HttpContext httpContext = new HttpContext("method", rawPath, "source-ip", "agent");
 		RequestContext requestContext = new RequestContext("domain", "request-id", httpContext);
 		return new ApiGatewayRequest(rawPath, rawQueryString, Collections.emptyMap(), requestContext, body,
 				isBodyBase64Encoded);
