@@ -48,8 +48,8 @@ import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 import com.j256.testcheckpublisher.plugin.PublishedTestResults;
 import com.j256.testcheckpublisher.plugin.TestCheckPubMojo;
 import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults;
-import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult;
-import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel;
+import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult;
+import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult.TestLevel;
 
 /**
  * Main lambda handler.
@@ -534,9 +534,10 @@ public class LambdaHandler implements RequestStreamHandler {
 			TestFileResult fileResult, FileInfo fileInfo, GithubFormat format, StringBuilder textSb) {
 
 		CheckLevel level = CheckLevel.fromTestLevel(fileResult.getTestLevel());
-		output.addAnnotation(
+		CheckRunAnnotation annotation =
 				new CheckRunAnnotation(fileInfo.getPath(), fileResult.getLineNumber(), fileResult.getLineNumber(),
-						level, fileResult.getTestName(), fileResult.getMessage(), fileResult.getDetails()));
+						level, fileResult.getTestName(), fileResult.getMessage(), fileResult.getDetails());
+		output.addAnnotation(annotation);
 
 		/*
 		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. The
@@ -546,6 +547,8 @@ public class LambdaHandler implements RequestStreamHandler {
 		if (format.isWriteDetails() && !fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
 			// NOTE: html seems to be filtered here
 			textSb.append("* ");
+			textSb.append(fileResult.getTestLevel().getPrettyString());
+			textSb.append(": ");
 			appendEscapedMessage(textSb, fileResult.getMessage());
 			textSb.append(' ')
 					.append("https://github.com/")

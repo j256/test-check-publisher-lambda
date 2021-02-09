@@ -39,8 +39,8 @@ import com.j256.testcheckpublisher.lambda.github.GithubClient;
 import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 import com.j256.testcheckpublisher.plugin.PublishedTestResults;
 import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults;
-import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult;
-import com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel;
+import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult;
+import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult.TestLevel;
 
 public class LambdaHandlerTest {
 
@@ -206,8 +206,8 @@ public class LambdaHandlerTest {
 		List<CheckRunAnnotation> annotations = new ArrayList<>();
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				title, message, details));
-		String text = "* " + message + " https://github.com/" + owner + "/" + repo + "/blob/" + commitSha + "/"
-				+ filePath + "#L" + startLine + "\n";
+		String text = "* " + testLevel.getPrettyString() + ": " + message + " https://github.com/" + owner + "/" + repo
+				+ "/blob/" + commitSha + "/" + filePath + "#L" + startLine + "\n";
 		CheckRunOutput output =
 				new CheckRunOutput(numTests + " tests, " + numFailures + " failures, " + numErrors + " errors", "",
 						text, annotations, numTests, numFailures, numErrors);

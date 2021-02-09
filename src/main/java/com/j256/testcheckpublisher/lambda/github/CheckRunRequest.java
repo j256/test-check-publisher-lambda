@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.gson.annotations.SerializedName;
+import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult;
 
 /**
  * Information about a check-run that is posted to github. https://docs.github.com/en/rest/reference/checks#runs
@@ -347,8 +348,7 @@ public class CheckRunRequest {
 			this.value = value;
 		}
 
-		public static CheckLevel fromTestLevel(
-				com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResults.TestFileResult.TestLevel testLevel) {
+		public static CheckLevel fromTestLevel(TestFileResult.TestLevel testLevel) {
 			switch (testLevel) {
 				case FAILURE:
 					return CheckLevel.FAILURE;
