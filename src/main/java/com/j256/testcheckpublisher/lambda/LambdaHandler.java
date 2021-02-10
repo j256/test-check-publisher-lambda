@@ -534,9 +534,9 @@ public class LambdaHandler implements RequestStreamHandler {
 			TestFileResult fileResult, FileInfo fileInfo, GithubFormat format, StringBuilder textSb) {
 
 		CheckLevel level = CheckLevel.fromTestLevel(fileResult.getTestLevel());
-		CheckRunAnnotation annotation =
-				new CheckRunAnnotation(fileInfo.getPath(), fileResult.getLineNumber(), fileResult.getLineNumber(),
-						level, fileResult.getTestName(), fileResult.getMessage(), fileResult.getDetails());
+		CheckRunAnnotation annotation = new CheckRunAnnotation(fileInfo.getPath(), fileResult.getStartLineNumber(),
+				fileResult.getEndLineNumber(), level, fileResult.getTestName(), fileResult.getMessage(),
+				fileResult.getDetails());
 		output.addAnnotation(annotation);
 
 		/*
@@ -560,7 +560,7 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append('/')
 					.append(fileInfo.getPath())
 					.append("#L")
-					.append(fileResult.getLineNumber())
+					.append(fileResult.getStartLineNumber())
 					.append('\n');
 		}
 	}

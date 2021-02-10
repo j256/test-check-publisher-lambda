@@ -139,7 +139,7 @@
 			<plugin>
 				<groupId>com.j256.testcheckpublisher</groupId>
 				<artifactId>test-check-publisher-maven-plugin</artifactId>
-				<version>0.8</version>
+				<version>1.2</version>
 			</plugin>
 		</plugins>
 		<pluginManagement>
@@ -186,7 +186,7 @@
 		<dependency>
 			<groupId>com.j256.testcheckpublisher</groupId>
 			<artifactId>test-check-publisher-maven-plugin</artifactId>
-			<version>1.1</version>
+			<version>1.2</version>
 			<exclusions>
 				<exclusion>
 					<groupId>com.fasterxml.jackson.dataformat</groupId>

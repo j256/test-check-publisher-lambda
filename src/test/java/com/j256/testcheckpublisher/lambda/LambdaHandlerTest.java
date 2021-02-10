@@ -116,7 +116,8 @@ public class LambdaHandlerTest {
 		String title = "test123";
 		String message = "message";
 		String details = "details";
-		testFileResults.add(new TestFileResult(filePath, startLine, TestLevel.ERROR, 0.1F, title, message, details));
+		testFileResults.add(
+				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
 		FrameworkTestResults frameworkResults =
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "format");
 
@@ -179,7 +180,8 @@ public class LambdaHandlerTest {
 		String title = "test123";
 		String message = "message";
 		String details = "details";
-		testFileResults.add(new TestFileResult(filePath, startLine, TestLevel.ERROR, 0.1F, title, message, details));
+		testFileResults.add(
+				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
 		FrameworkTestResults frameworkResults =
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "format");
 
@@ -444,7 +446,7 @@ public class LambdaHandlerTest {
 		ByteArrayInputStream bais = new ByteArrayInputStream(writer.toString().getBytes());
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-		handler.handleRequest(bais, baos, new ContextImpl());
+		handler.handleRequest(bais, baos, new TestContextImpl());
 
 		ApiGatewayResponse response = gson.fromJson(new String(baos.toByteArray()), ApiGatewayResponse.class);
 		assertNotNull(response);

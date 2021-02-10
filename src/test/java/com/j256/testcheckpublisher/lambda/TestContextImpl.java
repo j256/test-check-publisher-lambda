@@ -11,7 +11,7 @@ import com.amazonaws.services.lambda.runtime.LambdaRuntime;
  * 
  * @author graywatson
  */
-public class ContextImpl implements Context {
+public class TestContextImpl implements Context {
 
 	@Override
 	public int getRemainingTimeInMillis() {
