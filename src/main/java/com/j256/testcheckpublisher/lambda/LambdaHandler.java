@@ -533,7 +533,11 @@ public class LambdaHandler implements RequestStreamHandler {
 	private void addTestResult(String owner, String repository, String commitSha, CheckRunOutput output,
 			TestFileResult fileResult, FileInfo fileInfo, GithubFormat format, StringBuilder textSb) {
 
-		CheckLevel level = CheckLevel.fromTestLevel(fileResult.getTestLevel());
+		TestLevel testLevel = fileResult.getTestLevel();
+		if (testLevel == TestLevel.NOTICE && !format.isShowNotice()) {
+			return;
+		}
+		CheckLevel level = CheckLevel.fromTestLevel(testLevel);
 		CheckRunAnnotation annotation = new CheckRunAnnotation(fileInfo.getPath(), fileResult.getStartLineNumber(),
 				fileResult.getEndLineNumber(), level, fileResult.getTestName(), fileResult.getMessage(),
 				fileResult.getDetails());
@@ -544,10 +548,14 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * commit might make a change to a source file and fail a unit test that is not part of the commit. This results
 		 * in effectively a broken link in the annotation file reference unfortunately.
 		 */
-		if (format.isWriteDetails() && !fileInfo.isInCommit() && fileResult.getTestLevel() != TestLevel.NOTICE) {
+		if (format.isShowDetails() && !fileInfo.isInCommit() && testLevel != TestLevel.NOTICE) {
 			// NOTE: html seems to be filtered here
 			textSb.append("* ");
-			textSb.append(fileResult.getTestLevel().getPrettyString());
+			String emoji = Utf8Utils.testLevelToEmoji(testLevel, format);
+			if (emoji != null) {
+				textSb.append(emoji);
+			}
+			textSb.append(testLevel.getPrettyString());
 			textSb.append(": ");
 			appendEscapedMessage(textSb, fileResult.getMessage());
 			textSb.append(' ')
@@ -677,37 +685,6 @@ public class LambdaHandler implements RequestStreamHandler {
 
 	private static String bytesToHex(byte[] digest) {
 		return new String(Hex.encodeHex(digest));
-	}
-
-	/**
-	 * Format of the results that we post to github.
-	 */
-	private static enum GithubFormat {
-		DEFAULT,
-		// end
-		;
-
-		/**
-		 * Write failures and errors into the details if they aren't in the commit.
-		 */
-		public boolean isWriteDetails() {
-			return true;
-		}
-
-		/**
-		 * Find the format for our string returning {@link #DEFAULT} if not found.
-		 */
-		public static GithubFormat fromString(String str) {
-			if (str == null) {
-				return DEFAULT;
-			}
-			for (GithubFormat format : values()) {
-				if (format.name().equalsIgnoreCase(str)) {
-					return format;
-				}
-			}
-			return DEFAULT;
-		}
 	}
 
 	private static class NullLogger implements LambdaLogger {

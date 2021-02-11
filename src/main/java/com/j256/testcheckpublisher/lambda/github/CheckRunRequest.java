@@ -83,7 +83,9 @@ public class CheckRunRequest {
 	public static class CheckRunOutput {
 
 		String title = "";
+		// supports markdown
 		String summary = "";
+		// supports markdown
 		String text = "";
 		List<CheckRunAnnotation> annotations;
 		transient int testCount;
