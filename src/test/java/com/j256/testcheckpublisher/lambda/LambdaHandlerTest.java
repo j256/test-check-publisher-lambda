@@ -183,7 +183,7 @@ public class LambdaHandlerTest {
 		testFileResults.add(
 				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "format");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "noemoji");
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -466,6 +466,5 @@ public class LambdaHandlerTest {
 			}
 			return new String(baos.toByteArray());
 		}
-
 	}
 }
