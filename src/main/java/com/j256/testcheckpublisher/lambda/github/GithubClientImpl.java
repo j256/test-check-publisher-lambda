@@ -81,6 +81,9 @@ public class GithubClientImpl implements GithubClient {
 		if (githubAppId == null) {
 			logger.log("ERROR: Could not find github-app-id env variable\n");
 			return null;
+		} else if (applicationKey == null) {
+			logger.log("ERROR: Application-key cannot be null\n");
+			return null;
 		} else {
 			return new GithubClientImpl(httpclient, owner, repository, applicationKey, logger, label);
 		}

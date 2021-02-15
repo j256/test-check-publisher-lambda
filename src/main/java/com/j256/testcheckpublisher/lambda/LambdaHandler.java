@@ -101,7 +101,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			if (github != null) {
 				github.findInstallationId();
 			}
-		} catch (IOException ioe) {
+		} catch (Throwable th) {
 			// ignore it
 		}
 	}
@@ -555,14 +555,14 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		/*
-		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. The
-		 * commit might make a change to a source file and fail a unit test that is not part of the commit. This results
-		 * in effectively a broken link in the annotation file reference unfortunately.
+		 * If the file is not referenced in the commit then we add into the text. The commit might make a change to a
+		 * source file and fail a unit test that is not part of the commit. This results in effectively a broken link in
+		 * the annotation file reference unfortunately.
 		 */
 		if (format.isShowDetails() && !shown && (format.isAllDetails() || testLevel != TestLevel.NOTICE)) {
 			// NOTE: most html is filtered but markdown is supported
 			if (textSb.length() > 0) {
-				// insert a horizontol line between the previous one and this one
+				// insert a horizontal line between the previous one and this one, newlines are needed
 				textSb.append('\n');
 				textSb.append("---\n");
 				textSb.append('\n');
@@ -573,7 +573,9 @@ public class LambdaHandler implements RequestStreamHandler {
 			}
 			textSb.append(testLevel.getPrettyString());
 			textSb.append(": ");
-			appendEscapedMessage(textSb, fileResult.getMessage());
+			appendEscaped(textSb, fileResult.getTestName());
+			textSb.append(": ");
+			appendEscaped(textSb, fileResult.getMessage());
 			textSb.append(' ')
 					.append("https://github.com/")
 					.append(owner)
@@ -588,11 +590,11 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append('\n');
 			String details = fileResult.getDetails();
 			if (!StringUtils.isBlank(details)) {
-				// this seems to work
+				// this seems to work although is brittle
 				textSb.append("<details><summary>Raw output</summary>\n");
 				textSb.append('\n');
 				textSb.append("```\n");
-				appendEscapedMessage(textSb, details);
+				appendEscaped(textSb, details);
 				if (!details.endsWith("\n")) {
 					textSb.append('\n');
 				}
@@ -602,7 +604,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private void appendEscapedMessage(StringBuilder sb, String msg) {
+	private void appendEscaped(StringBuilder sb, String msg) {
 		int len = msg.length();
 		for (int i = 0; i < len; i++) {
 			char ch = msg.charAt(i);

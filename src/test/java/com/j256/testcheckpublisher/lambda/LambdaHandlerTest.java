@@ -179,11 +179,11 @@ public class LambdaHandlerTest {
 		String filePath = "1/2/3.java";
 		int startLine = 123213;
 		TestLevel testLevel = TestLevel.ERROR;
-		String title = "test123";
+		String testName = "test123";
 		String message = "message";
 		String details = "details\nhere";
 		testFileResults.add(
-				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
+				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, testName, message, details));
 		FrameworkTestResults frameworkResults =
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "");
 
@@ -210,11 +210,13 @@ public class LambdaHandlerTest {
 
 		List<CheckRunAnnotation> annotations = new ArrayList<>();
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
-				title, message, details));
+				testName, message, details));
 		final StringBuilder textSb = new StringBuilder();
 		textSb.append(EmojiUtils.levelToEmoji(testLevel, format))
 				.append("&nbsp;&nbsp;")
 				.append(testLevel.getPrettyString())
+				.append(": ")
+				.append(testName)
 				.append(": ")
 				.append(message)
 				.append(" https://github.com/")

@@ -31,12 +31,14 @@ public class EmojiUtils {
 		// 🔺 :small_red_triangle:
 		// ❌ :x:
 		// ℹ️ :information_source:
+		// 🆗 :ok:	
 		switch (level) {
 			case FAILURE:
 				return ":x:";
 			case ERROR:
 				return ":warning:";
 			case NOTICE:
+				return ":heavy_check_mark:";
 			default:
 				return null;
 		}
