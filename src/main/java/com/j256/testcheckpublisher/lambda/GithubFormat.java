@@ -8,13 +8,18 @@ public class GithubFormat {
 	private final boolean showDetails;
 	private final boolean showEmoji;
 	private final boolean showNotice;
-	private final boolean gridOnly;
+	private final boolean alwaysAnnotate;
+	private final boolean noAnnotate;
+	private final boolean allDetails;
 
-	public GithubFormat(boolean showDetails, boolean showEmoji, boolean showNotice, boolean gridOnly) {
+	public GithubFormat(boolean showDetails, boolean showEmoji, boolean showNotice, boolean alwaysAnnotate,
+			boolean noAnnotate, boolean allDetails) {
 		this.showDetails = showDetails;
 		this.showEmoji = showEmoji;
 		this.showNotice = showNotice;
-		this.gridOnly = gridOnly;
+		this.alwaysAnnotate = alwaysAnnotate;
+		this.noAnnotate = noAnnotate;
+		this.allDetails = allDetails;
 	}
 
 	/**
@@ -32,8 +37,16 @@ public class GithubFormat {
 		return showNotice;
 	}
 
-	public boolean isGridOnly() {
-		return gridOnly;
+	public boolean isAlwaysAnnotate() {
+		return alwaysAnnotate;
+	}
+
+	public boolean isNoAnnotate() {
+		return noAnnotate;
+	}
+
+	public boolean isAllDetails() {
+		return allDetails;
 	}
 
 	/**
@@ -43,9 +56,11 @@ public class GithubFormat {
 		boolean showDetails = true;
 		boolean showEmoji = true;
 		boolean showNotice = true;
-		boolean gridOnly = false;
+		boolean alwaysAnnotate = false;
+		boolean noAnnotate = false;
+		boolean allDetails = false;
 		if (!StringUtils.isEmpty(str)) {
-			String[] tokens = StringUtils.split(str, ',');
+			String[] tokens = StringUtils.split(str.toLowerCase(), ',');
 			for (String token : tokens) {
 				switch (token) {
 					case "nodetails":
@@ -57,8 +72,14 @@ public class GithubFormat {
 					case "nonotice":
 						showNotice = false;
 						break;
-					case "grid":
-						gridOnly = true;
+					case "alwaysannotate":
+						alwaysAnnotate = true;
+						break;
+					case "noannotate":
+						noAnnotate = true;
+						break;
+					case "alldetails":
+						allDetails = true;
 						break;
 					default:
 						// ignored
@@ -66,6 +87,6 @@ public class GithubFormat {
 				}
 			}
 		}
-		return new GithubFormat(showDetails, showEmoji, showNotice, gridOnly);
+		return new GithubFormat(showDetails, showEmoji, showNotice, alwaysAnnotate, noAnnotate, allDetails);
 	}
 }

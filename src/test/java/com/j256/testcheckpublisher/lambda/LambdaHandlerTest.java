@@ -2,6 +2,8 @@ package com.j256.testcheckpublisher.lambda;
 
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.getCurrentArguments;
+import static org.easymock.EasyMock.isA;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
 import static org.junit.Assert.assertEquals;
@@ -21,6 +23,7 @@ import java.util.List;
 import org.apache.http.HttpStatus;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.message.BasicStatusLine;
+import org.easymock.IAnswer;
 import org.junit.Test;
 
 import com.google.gson.Gson;
@@ -179,15 +182,16 @@ public class LambdaHandlerTest {
 		TestLevel testLevel = TestLevel.ERROR;
 		String title = "test123";
 		String message = "message";
-		String details = "details";
+		String details = "details\nhere";
 		testFileResults.add(
 				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "noemoji");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "");
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
 
+		GithubFormat format = GithubFormat.fromString("");
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
@@ -208,13 +212,39 @@ public class LambdaHandlerTest {
 		List<CheckRunAnnotation> annotations = new ArrayList<>();
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				title, message, details));
-		String text = "* " + testLevel.getPrettyString() + ": " + message + " https://github.com/" + owner + "/" + repo
-				+ "/blob/" + commitSha + "/" + filePath + "#L" + startLine + "\n";
-		CheckRunOutput output =
-				new CheckRunOutput(numTests + " tests, " + numFailures + " failures, " + numErrors + " errors", "",
-						text, annotations, numTests, numFailures, numErrors);
-		CheckRunRequest checkRunRequest = new CheckRunRequest("name", commitSha, output);
-		expect(github.addCheckRun(checkRunRequest)).andReturn(true);
+		final StringBuilder textSb = new StringBuilder();
+		textSb.append("* ")
+				.append(EmojiUtils.levelToEmoji(testLevel, format))
+				.append("&nbsp;&nbsp;")
+				.append(testLevel.getPrettyString())
+				.append(": ")
+				.append(message)
+				.append(" https://github.com/")
+				.append(owner + "/")
+				.append(repo)
+				.append("/blob/")
+				.append(commitSha)
+				.append("/")
+				.append(filePath)
+				.append("#L")
+				.append(startLine)
+				.append("\n");
+		textSb.append("\t<details><summary>Raw output</summary>\n");
+		textSb.append('\n');
+		textSb.append("\t\tdetails\n");
+		textSb.append("\t\there\n");
+		textSb.append("\t</details>\n");
+		final String outputTitle = numTests + " tests, " + numFailures + " failures, " + numErrors + " errors";
+		expect(github.addCheckRun(isA(CheckRunRequest.class))).andAnswer(new IAnswer<Boolean>() {
+			@Override
+			public Boolean answer() {
+				Object[] args = getCurrentArguments();
+				CheckRunRequest request = (CheckRunRequest) args[0];
+				assertEquals(outputTitle, request.getOutput().getTitle());
+				assertEquals(textSb.toString(), request.getOutput().getText());
+				return true;
+			}
+		});
 
 		replay(github);
 

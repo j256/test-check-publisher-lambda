@@ -13,10 +13,14 @@ public class Utf8UtilsTest {
 	public void testCoverage() {
 		GithubFormat format = GithubFormat.fromString(null);
 		for (TestLevel level : TestLevel.values()) {
-			assertNotNull(Utf8Utils.testLevelToEmoji(level, format));
+			if (level == TestLevel.NOTICE) {
+				assertNull(level + " should be null", EmojiUtils.levelToEmoji(level, format));
+			} else {
+				assertNotNull(level + " should not be null", EmojiUtils.levelToEmoji(level, format));
+			}
 		}
 
 		format = GithubFormat.fromString("noemoji");
-		assertNull(Utf8Utils.testLevelToEmoji(TestLevel.ERROR, format));
+		assertNull(EmojiUtils.levelToEmoji(TestLevel.ERROR, format));
 	}
 }

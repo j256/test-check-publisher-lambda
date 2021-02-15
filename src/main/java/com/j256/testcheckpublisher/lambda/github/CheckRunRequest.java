@@ -34,6 +34,10 @@ public class CheckRunRequest {
 		}
 	}
 
+	public CheckRunOutput getOutput() {
+		return output;
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -152,6 +156,10 @@ public class CheckRunRequest {
 
 		public void setSummary(String summary) {
 			this.summary = summary;
+		}
+
+		public String getText() {
+			return text;
 		}
 
 		public void setText(String text) {

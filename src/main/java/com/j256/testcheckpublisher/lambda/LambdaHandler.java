@@ -322,6 +322,12 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 		String repository = publishedResults.getRepository();
 
+		FrameworkTestResults frameworkResults = publishedResults.getResults();
+		if (StringUtils.isBlank(frameworkResults.getName())) {
+			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain", "No framework name supplied.");
+			return;
+		}
+
 		String label = publishedResults.getOwner() + "/" + repository;
 		logger.log(label + ": uploading @" + publishedResults.getCommitSha() + "\n");
 
@@ -398,7 +404,6 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		FrameworkTestResults frameworkResults = publishedResults.getResults();
 		GithubFormat format = GithubFormat.fromString(frameworkResults.getFormat());
 
 		// create the check-run request
@@ -538,22 +543,28 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 		CheckLevel level = CheckLevel.fromTestLevel(testLevel);
-		CheckRunAnnotation annotation = new CheckRunAnnotation(fileInfo.getPath(), fileResult.getStartLineNumber(),
-				fileResult.getEndLineNumber(), level, fileResult.getTestName(), fileResult.getMessage(),
-				fileResult.getDetails());
-		output.addAnnotation(annotation);
+
+		boolean shown = false;
+		if (!format.isNoAnnotate() && (fileInfo.isInCommit() || format.isAlwaysAnnotate())) {
+			// always annotate even if the error isn't in commit
+			CheckRunAnnotation annotation = new CheckRunAnnotation(fileInfo.getPath(), fileResult.getStartLineNumber(),
+					fileResult.getEndLineNumber(), level, fileResult.getTestName(), fileResult.getMessage(),
+					fileResult.getDetails());
+			output.addAnnotation(annotation);
+			shown = true;
+		}
 
 		/*
 		 * If the file is not referenced in the commit then we add into the text of the check a reference to it. The
 		 * commit might make a change to a source file and fail a unit test that is not part of the commit. This results
 		 * in effectively a broken link in the annotation file reference unfortunately.
 		 */
-		if (format.isShowDetails() && !fileInfo.isInCommit() && testLevel != TestLevel.NOTICE) {
-			// NOTE: html seems to be filtered here
+		if (format.isShowDetails() && !shown && (format.isAllDetails() || testLevel != TestLevel.NOTICE)) {
+			// NOTE: html is filtered but markdown is supported
 			textSb.append("* ");
-			String emoji = Utf8Utils.testLevelToEmoji(testLevel, format);
+			String emoji = EmojiUtils.levelToEmoji(testLevel, format);
 			if (emoji != null) {
-				textSb.append(emoji);
+				textSb.append(emoji).append("&nbsp;&nbsp;");
 			}
 			textSb.append(testLevel.getPrettyString());
 			textSb.append(": ");
@@ -570,6 +581,35 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append("#L")
 					.append(fileResult.getStartLineNumber())
 					.append('\n');
+			String details = fileResult.getDetails();
+			if (!StringUtils.isBlank(details)) {
+				textSb.append("\t<details><summary>Raw output</summary>\n");
+				textSb.append('\n');
+				indent(textSb, details, "\t\t");
+				textSb.append("\t</details>\n");
+			}
+		}
+	}
+	
+	private void indent(StringBuilder textSb, String details, String prefix) {
+		boolean lastCr = false;
+		boolean insertPrefix = true;
+		for (int i = 0; i < details.length(); i++) {
+			char ch = details.charAt(i);
+			if (insertPrefix || (lastCr && ch != '\n')) {
+				textSb.append(prefix);
+				insertPrefix = false;
+			}
+			textSb.append(ch);
+			if (ch == '\r') {
+				lastCr = true;
+			} else if (ch == '\n') {
+				lastCr = false;
+				insertPrefix = true;
+			}
+		}
+		if (!insertPrefix) {
+			textSb.append('\n');
 		}
 	}
 
