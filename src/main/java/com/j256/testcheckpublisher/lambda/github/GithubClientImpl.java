@@ -216,6 +216,13 @@ public class GithubClientImpl implements GithubClient {
 		return lastStatusLine;
 	}
 
+	/**
+	 * For testing purposes.
+	 */
+	public static void setGithubAppId(String githubAppId) {
+		GithubClientImpl.githubAppId = githubAppId;
+	}
+
 	private boolean doCheckRunPost(CheckRunRequest request)
 			throws IOException, UnsupportedEncodingException, ClientProtocolException {
 		HttpPost post = new HttpPost("https://api.github.com/repos/" + owner + "/" + repository + "/check-runs");
@@ -269,8 +276,8 @@ public class GithubClientImpl implements GithubClient {
 			if (lastStatusLine.getStatusCode() != HttpStatus.SC_CREATED) {
 				return null;
 			}
-			AccessTokensResponse tokens =
-					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), AccessTokensResponse.class);
+			AccessTokenResponse tokens =
+					gson.fromJson(new InputStreamReader(response.getEntity().getContent()), AccessTokenResponse.class);
 			String accessToken = tokens.getToken();
 			if (accessToken == null || accessToken.length() == 0) {
 				return null;

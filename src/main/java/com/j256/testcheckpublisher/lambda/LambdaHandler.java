@@ -560,8 +560,13 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * in effectively a broken link in the annotation file reference unfortunately.
 		 */
 		if (format.isShowDetails() && !shown && (format.isAllDetails() || testLevel != TestLevel.NOTICE)) {
-			// NOTE: html is filtered but markdown is supported
-			textSb.append("* ");
+			// NOTE: most html is filtered but markdown is supported
+			if (textSb.length() > 0) {
+				// insert a horizontol line between the previous one and this one
+				textSb.append('\n');
+				textSb.append("---\n");
+				textSb.append('\n');
+			}
 			String emoji = EmojiUtils.levelToEmoji(testLevel, format);
 			if (emoji != null) {
 				textSb.append(emoji).append("&nbsp;&nbsp;");
@@ -583,33 +588,17 @@ public class LambdaHandler implements RequestStreamHandler {
 					.append('\n');
 			String details = fileResult.getDetails();
 			if (!StringUtils.isBlank(details)) {
-				textSb.append("\t<details><summary>Raw output</summary>\n");
+				// this seems to work
+				textSb.append("<details><summary>Raw output</summary>\n");
 				textSb.append('\n');
-				indent(textSb, details, "\t\t");
-				textSb.append("\t</details>\n");
+				textSb.append("```\n");
+				appendEscapedMessage(textSb, details);
+				if (!details.endsWith("\n")) {
+					textSb.append('\n');
+				}
+				textSb.append("```\n");
+				textSb.append("</details>\n");
 			}
-		}
-	}
-	
-	private void indent(StringBuilder textSb, String details, String prefix) {
-		boolean lastCr = false;
-		boolean insertPrefix = true;
-		for (int i = 0; i < details.length(); i++) {
-			char ch = details.charAt(i);
-			if (insertPrefix || (lastCr && ch != '\n')) {
-				textSb.append(prefix);
-				insertPrefix = false;
-			}
-			textSb.append(ch);
-			if (ch == '\r') {
-				lastCr = true;
-			} else if (ch == '\n') {
-				lastCr = false;
-				insertPrefix = true;
-			}
-		}
-		if (!insertPrefix) {
-			textSb.append('\n');
 		}
 	}
 

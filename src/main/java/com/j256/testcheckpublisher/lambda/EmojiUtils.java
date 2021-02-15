@@ -30,11 +30,12 @@ public class EmojiUtils {
 		// 📍 :round_pushpin:
 		// 🔺 :small_red_triangle:
 		// ❌ :x:
-		// ℹ️ :information_source:	
+		// ℹ️ :information_source:
 		switch (level) {
 			case FAILURE:
-			case ERROR:
 				return ":x:";
+			case ERROR:
+				return ":warning:";
 			case NOTICE:
 			default:
 				return null;

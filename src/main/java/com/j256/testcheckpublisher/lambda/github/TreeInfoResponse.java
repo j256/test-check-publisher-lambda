@@ -13,6 +13,15 @@ public class TreeInfoResponse {
 	@SerializedName("tree")
 	private TreeFile[] treeFiles;
 
+	public TreeInfoResponse() {
+		// for gson
+	}
+
+	public TreeInfoResponse(String sha, TreeFile[] treeFiles) {
+		this.sha = sha;
+		this.treeFiles = treeFiles;
+	}
+
 	public String getSha() {
 		return sha;
 	}
@@ -22,7 +31,7 @@ public class TreeInfoResponse {
 	}
 
 	/**
-	 * Information about a file in the tree. 
+	 * Information about a file in the tree.
 	 */
 	public static class TreeFile {
 

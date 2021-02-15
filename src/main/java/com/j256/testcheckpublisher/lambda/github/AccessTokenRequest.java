@@ -23,4 +23,12 @@ public class AccessTokenRequest {
 		this.installationId = installationId;
 		this.repositories = new String[] { repository };
 	}
+
+	public int getInstallationId() {
+		return installationId;
+	}
+
+	public String[] getRepositories() {
+		return repositories;
+	}
 }

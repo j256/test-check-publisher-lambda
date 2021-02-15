@@ -34,6 +34,10 @@ public class CheckRunRequest {
 		}
 	}
 
+	public Conclusion getConclusion() {
+		return conclusion;
+	}
+
 	public CheckRunOutput getOutput() {
 		return output;
 	}

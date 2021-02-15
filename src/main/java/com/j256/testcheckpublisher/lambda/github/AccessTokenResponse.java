@@ -6,11 +6,15 @@ package com.j256.testcheckpublisher.lambda.github;
  * 
  * @author graywatson
  */
-public class AccessTokensResponse {
+public class AccessTokenResponse {
 
 	private String token;
 
 	public String getToken() {
 		return token;
+	}
+
+	public void setToken(String token) {
+		this.token = token;
 	}
 }

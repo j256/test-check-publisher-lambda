@@ -23,8 +23,8 @@ public class ApiGatewayRequest {
 		// for gson
 	}
 
-	public ApiGatewayRequest(String rawPath, String rawQueryString, Map<String, String> headers, RequestContext requestContext,
-			String body, boolean isBodyBase64Encoded) {
+	public ApiGatewayRequest(String rawPath, String rawQueryString, Map<String, String> headers,
+			RequestContext requestContext, String body, boolean isBodyBase64Encoded) {
 		this.rawPath = rawPath;
 		this.rawQueryString = rawQueryString;
 		this.headers = headers;

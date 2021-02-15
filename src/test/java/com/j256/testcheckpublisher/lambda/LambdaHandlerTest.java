@@ -13,7 +13,6 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.StringWriter;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -102,7 +101,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUpload() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -166,7 +165,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUploadNotInCommit() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -213,8 +212,7 @@ public class LambdaHandlerTest {
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				title, message, details));
 		final StringBuilder textSb = new StringBuilder();
-		textSb.append("* ")
-				.append(EmojiUtils.levelToEmoji(testLevel, format))
+		textSb.append(EmojiUtils.levelToEmoji(testLevel, format))
 				.append("&nbsp;&nbsp;")
 				.append(testLevel.getPrettyString())
 				.append(": ")
@@ -229,11 +227,13 @@ public class LambdaHandlerTest {
 				.append("#L")
 				.append(startLine)
 				.append("\n");
-		textSb.append("\t<details><summary>Raw output</summary>\n");
+		textSb.append("<details><summary>Raw output</summary>\n");
 		textSb.append('\n');
-		textSb.append("\t\tdetails\n");
-		textSb.append("\t\there\n");
-		textSb.append("\t</details>\n");
+		textSb.append("```\n");
+		textSb.append("details\n");
+		textSb.append("here\n");
+		textSb.append("```\n");
+		textSb.append("</details>\n");
 		final String outputTitle = numTests + " tests, " + numFailures + " failures, " + numErrors + " errors";
 		expect(github.addCheckRun(isA(CheckRunRequest.class))).andAnswer(new IAnswer<Boolean>() {
 			@Override
@@ -258,7 +258,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUploadCommitCallFailed() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -298,7 +298,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUploadLoginFailed() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -337,7 +337,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUploadBadSecret() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -372,7 +372,7 @@ public class LambdaHandlerTest {
 	@Test
 	public void testUploadNoInstallationKey() throws IOException, GeneralSecurityException {
 		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandling.readKey(readPrivateKey()));
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
 		LambdaHandler handler = new LambdaHandler();
 
 		GithubClient github = createMock(GithubClient.class);
@@ -481,20 +481,5 @@ public class LambdaHandlerTest {
 		ApiGatewayResponse response = gson.fromJson(new String(baos.toByteArray()), ApiGatewayResponse.class);
 		assertNotNull(response);
 		return response;
-	}
-
-	private String readPrivateKey() throws IOException {
-		try (InputStream input = getClass().getClassLoader().getResourceAsStream("fake_key.pem");) {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			byte[] buf = new byte[4096];
-			while (true) {
-				int numRead = input.read(buf);
-				if (numRead < 0) {
-					break;
-				}
-				baos.write(buf, 0, numRead);
-			}
-			return new String(baos.toByteArray());
-		}
 	}
 }
