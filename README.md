@@ -1,5 +1,5 @@
-Test Check Publisher
-====================
+Test Check Publisher Lambda
+===========================
 
 This is the server side code that takes the results from the
 [Test Check Publisher Maven Plugin](https://github.com/j256/test-check-publisher-maven-plugin) and posts them to Github

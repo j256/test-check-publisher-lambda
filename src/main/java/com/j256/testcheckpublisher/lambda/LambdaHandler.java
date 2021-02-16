@@ -539,68 +539,69 @@ public class LambdaHandler implements RequestStreamHandler {
 			TestFileResult fileResult, FileInfo fileInfo, GithubFormat format, StringBuilder textSb) {
 
 		TestLevel testLevel = fileResult.getTestLevel();
-		if (testLevel == TestLevel.NOTICE && !format.isShowNotice()) {
+		if (testLevel == TestLevel.NOTICE && format.isNoPass()) {
 			return;
 		}
 		CheckLevel level = CheckLevel.fromTestLevel(testLevel);
 
-		boolean shown = false;
 		if (!format.isNoAnnotate() && (fileInfo.isInCommit() || format.isAlwaysAnnotate())) {
 			// always annotate even if the error isn't in commit
 			CheckRunAnnotation annotation = new CheckRunAnnotation(fileInfo.getPath(), fileResult.getStartLineNumber(),
 					fileResult.getEndLineNumber(), level, fileResult.getTestName(), fileResult.getMessage(),
 					fileResult.getDetails());
 			output.addAnnotation(annotation);
-			shown = true;
+			return;
+		}
+
+		if (format.isNoDetails() || (testLevel == TestLevel.NOTICE && !format.isPassDetails())) {
+			return;
 		}
 
 		/*
-		 * If the file is not referenced in the commit then we add into the text. The commit might make a change to a
-		 * source file and fail a unit test that is not part of the commit. This results in effectively a broken link in
-		 * the annotation file reference unfortunately.
+		 * The commit might make a change to a source file and fail a unit test that is not part of the commit. This
+		 * results in effectively a broken link in the annotation file reference unfortunately. In this case we add some
+		 * markdown into the details section at the top of the page.
 		 */
-		if (format.isShowDetails() && !shown && (format.isAllDetails() || testLevel != TestLevel.NOTICE)) {
-			// NOTE: most html is filtered but markdown is supported
-			if (textSb.length() > 0) {
-				// insert a horizontal line between the previous one and this one, newlines are needed
-				textSb.append('\n');
-				textSb.append("---\n");
+
+		if (textSb.length() > 0) {
+			// insert a horizontal line between the previous one and this one, newlines are needed
+			textSb.append('\n');
+			textSb.append("---\n");
+			textSb.append('\n');
+		}
+		String emoji = EmojiUtils.levelToEmoji(testLevel, format);
+		if (emoji != null) {
+			textSb.append(emoji).append("&nbsp;&nbsp;");
+		}
+		textSb.append(testLevel.getPrettyString());
+		textSb.append(": ");
+		appendEscaped(textSb, fileResult.getTestName());
+		textSb.append(": ");
+		appendEscaped(textSb, fileResult.getMessage());
+		textSb.append(' ')
+				.append("https://github.com/")
+				.append(owner)
+				.append('/')
+				.append(repository)
+				.append("/blob/")
+				.append(commitSha)
+				.append('/')
+				.append(fileInfo.getPath())
+				.append("#L")
+				.append(fileResult.getStartLineNumber())
+				.append('\n');
+		String details = fileResult.getDetails();
+		if (!StringUtils.isBlank(details)) {
+			// this seems to work although is brittle
+			textSb.append("<details><summary>Raw output</summary>\n");
+			textSb.append('\n');
+			textSb.append("```\n");
+			appendEscaped(textSb, details);
+			if (!details.endsWith("\n")) {
 				textSb.append('\n');
 			}
-			String emoji = EmojiUtils.levelToEmoji(testLevel, format);
-			if (emoji != null) {
-				textSb.append(emoji).append("&nbsp;&nbsp;");
-			}
-			textSb.append(testLevel.getPrettyString());
-			textSb.append(": ");
-			appendEscaped(textSb, fileResult.getTestName());
-			textSb.append(": ");
-			appendEscaped(textSb, fileResult.getMessage());
-			textSb.append(' ')
-					.append("https://github.com/")
-					.append(owner)
-					.append('/')
-					.append(repository)
-					.append("/blob/")
-					.append(commitSha)
-					.append('/')
-					.append(fileInfo.getPath())
-					.append("#L")
-					.append(fileResult.getStartLineNumber())
-					.append('\n');
-			String details = fileResult.getDetails();
-			if (!StringUtils.isBlank(details)) {
-				// this seems to work although is brittle
-				textSb.append("<details><summary>Raw output</summary>\n");
-				textSb.append('\n');
-				textSb.append("```\n");
-				appendEscaped(textSb, details);
-				if (!details.endsWith("\n")) {
-					textSb.append('\n');
-				}
-				textSb.append("```\n");
-				textSb.append("</details>\n");
-			}
+			textSb.append("```\n");
+			textSb.append("</details>\n");
 		}
 	}
 

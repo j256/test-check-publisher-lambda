@@ -3,7 +3,8 @@ package com.j256.testcheckpublisher.lambda;
 import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult.TestLevel;
 
 /**
- * Isolation for any UTF8 characters that screw up Eclipse.
+ * Isolation for any UTF8 characters that screw up Eclipse displaying them. Patterns from:
+ * https://github.com/ikatyang/emoji-cheat-sheet/blob/master/README.md
  * 
  * @author graywatson
  */
@@ -13,7 +14,7 @@ public class EmojiUtils {
 	 * Return the emoji for the level and the format or null if none.
 	 */
 	public static String levelToEmoji(TestLevel level, GithubFormat format) {
-		if (!format.isShowEmoji()) {
+		if (format.isNoEmoji()) {
 			return null;
 		}
 		// ✔️ :heavy_check_mark:️
@@ -31,7 +32,7 @@ public class EmojiUtils {
 		// 🔺 :small_red_triangle:
 		// ❌ :x:
 		// ℹ️ :information_source:
-		// 🆗 :ok:	
+		// 🆗 :ok:
 		switch (level) {
 			case FAILURE:
 				return ":x:";

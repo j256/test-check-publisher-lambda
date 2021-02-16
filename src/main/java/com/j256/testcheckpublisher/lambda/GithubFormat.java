@@ -5,36 +5,36 @@ package com.j256.testcheckpublisher.lambda;
  */
 public class GithubFormat {
 
-	private final boolean showDetails;
-	private final boolean showEmoji;
-	private final boolean showNotice;
+	private final boolean noDetails;
+	private final boolean noEmoji;
+	private final boolean noPass;
 	private final boolean alwaysAnnotate;
 	private final boolean noAnnotate;
-	private final boolean allDetails;
+	private final boolean passDetails;
 
-	public GithubFormat(boolean showDetails, boolean showEmoji, boolean showNotice, boolean alwaysAnnotate,
-			boolean noAnnotate, boolean allDetails) {
-		this.showDetails = showDetails;
-		this.showEmoji = showEmoji;
-		this.showNotice = showNotice;
+	public GithubFormat(boolean noDetails, boolean noEmoji, boolean noPass, boolean alwaysAnnotate, boolean noAnnotate,
+			boolean passDetails) {
+		this.noDetails = noDetails;
+		this.noEmoji = noEmoji;
+		this.noPass = noPass;
 		this.alwaysAnnotate = alwaysAnnotate;
 		this.noAnnotate = noAnnotate;
-		this.allDetails = allDetails;
+		this.passDetails = passDetails;
 	}
 
 	/**
 	 * Write failures and errors into the details if they aren't in the commit.
 	 */
-	public boolean isShowDetails() {
-		return showDetails;
+	public boolean isNoDetails() {
+		return noDetails;
 	}
 
-	public boolean isShowEmoji() {
-		return showEmoji;
+	public boolean isNoEmoji() {
+		return noEmoji;
 	}
 
-	public boolean isShowNotice() {
-		return showNotice;
+	public boolean isNoPass() {
+		return noPass;
 	}
 
 	public boolean isAlwaysAnnotate() {
@@ -45,41 +45,43 @@ public class GithubFormat {
 		return noAnnotate;
 	}
 
-	public boolean isAllDetails() {
-		return allDetails;
+	public boolean isPassDetails() {
+		return passDetails;
 	}
 
 	/**
 	 * Find the format for our string returning default one if null.
 	 */
 	public static GithubFormat fromString(String str) {
-		boolean showDetails = true;
-		boolean showEmoji = true;
-		boolean showNotice = true;
+		boolean noDetails = false;
+		boolean noEmoji = false;
+		boolean noPass = false;
 		boolean alwaysAnnotate = false;
 		boolean noAnnotate = false;
-		boolean allDetails = false;
+		boolean passDetails = false;
 		if (!StringUtils.isEmpty(str)) {
 			String[] tokens = StringUtils.split(str.toLowerCase(), ',');
 			for (String token : tokens) {
 				switch (token) {
 					case "nodetails":
-						showDetails = false;
-						break;
-					case "noemoji":
-						showEmoji = false;
-						break;
-					case "nonotice":
-						showNotice = false;
-						break;
-					case "alwaysannotate":
-						alwaysAnnotate = true;
+						noDetails = true;
 						break;
 					case "noannotate":
 						noAnnotate = true;
 						break;
+					case "nonotice":
+					case "nopass":
+						noPass = true;
+						break;
+					case "alwaysannotate":
+						alwaysAnnotate = true;
+						break;
+					case "noemoji":
+						noEmoji = true;
+						break;
 					case "alldetails":
-						allDetails = true;
+					case "passdetails":
+						passDetails = true;
 						break;
 					default:
 						// ignored
@@ -87,6 +89,6 @@ public class GithubFormat {
 				}
 			}
 		}
-		return new GithubFormat(showDetails, showEmoji, showNotice, alwaysAnnotate, noAnnotate, allDetails);
+		return new GithubFormat(noDetails, noEmoji, noPass, alwaysAnnotate, noAnnotate, passDetails);
 	}
 }
