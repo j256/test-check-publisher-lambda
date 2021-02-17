@@ -1,7 +1,5 @@
 package com.j256.testcheckpublisher.lambda;
 
-import java.io.File;
-
 /**
  * Information about a particular file.
  * 
@@ -17,8 +15,14 @@ public class FileInfo {
 	public FileInfo(String path, String sha, boolean inCommit) {
 		this.path = path;
 		// extract our file-name
-		int index = path.lastIndexOf(File.separatorChar);
-		if (index < path.length() - 1) {
+		int index = path.lastIndexOf('/');
+		if (index < 0) {
+			// handle windoze paths
+			index = path.lastIndexOf('\\');
+		}
+		if (index == -1) {
+			this.name = path;
+		} else if (index + 1 < path.length()) {
 			this.name = path.substring(index + 1);
 		} else {
 			this.name = path;
