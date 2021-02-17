@@ -2,8 +2,6 @@ package com.j256.testcheckpublisher.lambda;
 
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
-import static org.easymock.EasyMock.getCurrentArguments;
-import static org.easymock.EasyMock.isA;
 import static org.easymock.EasyMock.replay;
 import static org.easymock.EasyMock.verify;
 import static org.junit.Assert.assertEquals;
@@ -22,7 +20,6 @@ import java.util.List;
 import org.apache.http.HttpStatus;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.message.BasicStatusLine;
-import org.easymock.IAnswer;
 import org.junit.Test;
 
 import com.google.gson.Gson;
@@ -110,6 +107,7 @@ public class LambdaHandlerTest {
 		int numTests = 478;
 		int numFailures = 11;
 		int numErrors = 23;
+		int numSkipped = 34;
 
 		List<TestFileResult> testFileResults = new ArrayList<>();
 		String filePath = "1/2/3.java";
@@ -121,7 +119,7 @@ public class LambdaHandlerTest {
 		testFileResults.add(
 				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, title, message, details));
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "format");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, testFileResults);
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -129,7 +127,8 @@ public class LambdaHandlerTest {
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
@@ -147,106 +146,11 @@ public class LambdaHandlerTest {
 		List<CheckRunAnnotation> annotations = new ArrayList<>();
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				title, message, details));
-		CheckRunOutput output =
-				new CheckRunOutput(numTests + " tests, " + numFailures + " failures, " + numErrors + " errors", "", "",
-						annotations, numTests, numFailures, numErrors);
+		CheckRunOutput output = new CheckRunOutput(
+				numTests + " tests, " + numFailures + " failures, " + numErrors + " errors, " + numSkipped + " skipped",
+				"", "", annotations, numTests, numFailures, numErrors);
 		CheckRunRequest checkRunRequest = new CheckRunRequest("name", commitSha, output);
 		expect(github.addCheckRun(checkRunRequest)).andReturn(true);
-
-		replay(github);
-
-		ApiGatewayResponse response = doRequest(handler, request);
-		assertEquals(HttpStatus.SC_OK, response.getStatusCode());
-		assertTrue(response.getBody(), response.getBody().contains("posted to github"));
-
-		verify(github);
-	}
-
-	@Test
-	public void testUploadNotInCommit() throws IOException, GeneralSecurityException {
-		LambdaHandler.setInstallationIdSecret(1234);
-		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
-		LambdaHandler handler = new LambdaHandler();
-
-		GithubClient github = createMock(GithubClient.class);
-		handler.setTestGithub(github);
-
-		int numTests = 478;
-		int numFailures = 11;
-		int numErrors = 23;
-
-		List<TestFileResult> testFileResults = new ArrayList<>();
-		String filePath = "1/2/3.java";
-		int startLine = 123213;
-		TestLevel testLevel = TestLevel.ERROR;
-		String testName = "test123";
-		String message = "message";
-		String details = "details\nhere";
-		testFileResults.add(
-				new TestFileResult(filePath, startLine, startLine, TestLevel.ERROR, 0.1F, testName, message, details));
-		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, testFileResults, "");
-
-		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
-
-		GithubFormat format = GithubFormat.fromString("");
-		String owner = "owner";
-		String repo = "repo";
-		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
-
-		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
-
-		expect(github.findInstallationId()).andReturn(installationId);
-		expect(github.login()).andReturn(true);
-		String treeSha = "446";
-		Commit commit = new Commit(new Tree(treeSha));
-		CommitInfoResponse commitResponse = new CommitInfoResponse(commitSha, commit, new ChangedFile[0]);
-		expect(github.requestCommitInfo(commitSha)).andReturn(commitResponse);
-		List<TreeFile> treeFiles = new ArrayList<>();
-		treeFiles.add(new TreeFile(filePath, "added", "filesha"));
-		expect(github.requestTreeFiles(treeSha)).andReturn(treeFiles);
-
-		List<CheckRunAnnotation> annotations = new ArrayList<>();
-		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
-				testName, message, details));
-		final StringBuilder textSb = new StringBuilder();
-		textSb.append(EmojiUtils.levelToEmoji(testLevel, format))
-				.append("&nbsp;&nbsp;")
-				.append(testLevel.getPrettyString())
-				.append(": ")
-				.append(testName)
-				.append(": ")
-				.append(message)
-				.append(" https://github.com/")
-				.append(owner + "/")
-				.append(repo)
-				.append("/blob/")
-				.append(commitSha)
-				.append("/")
-				.append(filePath)
-				.append("#L")
-				.append(startLine)
-				.append("\n");
-		textSb.append("<details><summary>Raw output</summary>\n");
-		textSb.append('\n');
-		textSb.append("```\n");
-		textSb.append("details\n");
-		textSb.append("here\n");
-		textSb.append("```\n");
-		textSb.append("</details>\n");
-		final String outputTitle = numTests + " tests, " + numFailures + " failures, " + numErrors + " errors";
-		expect(github.addCheckRun(isA(CheckRunRequest.class))).andAnswer(new IAnswer<Boolean>() {
-			@Override
-			public Boolean answer() {
-				Object[] args = getCurrentArguments();
-				CheckRunRequest request = (CheckRunRequest) args[0];
-				assertEquals(outputTitle, request.getOutput().getTitle());
-				assertEquals(textSb.toString(), request.getOutput().getText());
-				return true;
-			}
-		});
 
 		replay(github);
 
@@ -266,11 +170,8 @@ public class LambdaHandlerTest {
 		GithubClient github = createMock(GithubClient.class);
 		handler.setTestGithub(github);
 
-		int numTests = 478;
-		int numFailures = 11;
-		int numErrors = 23;
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, Collections.emptyList(), "format");
+				new FrameworkTestResults("name", 478, 11, 23, 34, Collections.emptyList());
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -278,7 +179,8 @@ public class LambdaHandlerTest {
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
@@ -306,11 +208,8 @@ public class LambdaHandlerTest {
 		GithubClient github = createMock(GithubClient.class);
 		handler.setTestGithub(github);
 
-		int numTests = 478;
-		int numFailures = 11;
-		int numErrors = 23;
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, Collections.emptyList(), "format");
+				new FrameworkTestResults("name", 478, 11, 23, 34, Collections.emptyList());
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -318,7 +217,8 @@ public class LambdaHandlerTest {
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
@@ -348,15 +248,17 @@ public class LambdaHandlerTest {
 		int numTests = 478;
 		int numFailures = 11;
 		int numErrors = 23;
+		int numSkipped = 34;
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, Collections.emptyList(), "format");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, Collections.emptyList());
 
 		int installationId = 10;
 		String hash = "not right";
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
@@ -383,8 +285,9 @@ public class LambdaHandlerTest {
 		int numTests = 478;
 		int numFailures = 11;
 		int numErrors = 23;
+		int numSkipped = 34;
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, Collections.emptyList(), "format");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, Collections.emptyList());
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -392,7 +295,8 @@ public class LambdaHandlerTest {
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
@@ -419,8 +323,9 @@ public class LambdaHandlerTest {
 		int numTests = 478;
 		int numFailures = 11;
 		int numErrors = 23;
+		int numSkipped = 34;
 		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, Collections.emptyList(), "format");
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, Collections.emptyList());
 
 		int installationId = 10;
 		String hash = handler.createInstallationHash(null, installationId);
@@ -428,7 +333,8 @@ public class LambdaHandlerTest {
 		String owner = "owner";
 		String repo = "repo";
 		String commitSha = "12345";
-		PublishedTestResults results = new PublishedTestResults(owner, repo, commitSha, hash, frameworkResults);
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, hash, "format", frameworkResults);
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
