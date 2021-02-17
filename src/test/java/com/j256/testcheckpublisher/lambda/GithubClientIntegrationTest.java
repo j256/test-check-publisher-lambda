@@ -69,48 +69,37 @@ public class GithubClientIntegrationTest {
 	}
 
 	private static PublishedTestResults createResults() {
+
 		int numTests = 23;
 		int numFailures = 2;
 		int numErrors = 1;
-		int numSkipped = 0;
+		int numSkipped = 3;
+		List<TestFileResult> testFileResults = createTestFileResults();
 
+		FrameworkTestResults frameworkResults =
+				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, testFileResults);
+
+		String owner = "j256";
+		String repo = "test-check-publisher-maven-plugin";
+		String commitSha = "eb8fae1ccc4411d0139507c26446fc41ac867c71";
+		String formatStr = "noannotate,passdetails";
+		PublishedTestResults results =
+				new PublishedTestResults(owner, repo, commitSha, "secret", formatStr, frameworkResults);
+		return results;
+	}
+
+	private static List<TestFileResult> createTestFileResults() {
 		List<TestFileResult> testFileResults = new ArrayList<>();
 		int startLine1 = 115;
 		String testName1 = "com.j256.testcheckpublisher.plugin.frameworks.TestFileResultTest.testStuff";
 		String message1 = "Values should be different. Actual: 1431808913";
 		String details1 = "java.lang.AssertionError: Values should be different. Actual: 1431808913\n"
-				+ "	at org.junit.Assert.fail(Assert.java:89)\n" + "	at org.junit.Assert.failEquals(Assert.java:187)\n"
+				+ "	at org.junit.Assert.fail(Assert.java:89)\n" //
+				+ "	at org.junit.Assert.failEquals(Assert.java:187)\n"
 				+ "	at org.junit.Assert.assertNotEquals(Assert.java:201)\n"
 				+ "	at org.junit.Assert.assertNotEquals(Assert.java:213)\n"
 				+ "	at com.j256.testcheckpublisher.plugin.frameworks.TestFileResultTest.testNotEquals(TestFileResultTest.java:115)\n"
-				+ "	at com.j256.testcheckpublisher.plugin.frameworks.TestFileResultTest.testStuff(TestFileResultTest.java:48)\n"
-				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n"
-				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\n"
-				+ "	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n"
-				+ "	at java.lang.reflect.Method.invoke(Method.java:498)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)\n"
-				+ "	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)\n"
-				+ "	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)\n"
-				+ "	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)\n"
-				+ "	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\n"
-				+ "	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\n"
-				+ "	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\n"
-				+ "	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\n"
-				+ "	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:367)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:274)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:238)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:161)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:290)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:242)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:121)\n";
+				+ "	...\n";
 		testFileResults.add(new TestFileResult(FILE_PATH1, startLine1, startLine1, TestLevel.FAILURE, 0.1F, testName1,
 				message1, details1));
 
@@ -122,30 +111,8 @@ public class GithubClientIntegrationTest {
 				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n"
 				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\n"
 				+ "	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n"
-				+ "	at java.lang.reflect.Method.invoke(Method.java:498)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)\n"
-				+ "	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)\n"
-				+ "	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)\n"
-				+ "	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)\n"
-				+ "	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\n"
-				+ "	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\n"
-				+ "	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\n"
-				+ "	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\n"
-				+ "	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:367)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:274)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:238)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:161)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:290)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:242)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:121)\n";
+				+ "	at java.lang.reflect.Method.invoke(Method.java:498)\n" //
+				+ "	...\n";
 		testFileResults.add(new TestFileResult(FILE_PATH2, startLine2, startLine2, TestLevel.FAILURE, 0.1F, testName2,
 				message2, details2));
 
@@ -158,48 +125,15 @@ public class GithubClientIntegrationTest {
 				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n"
 				+ "	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\n"
 				+ "	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n"
-				+ "	at java.lang.reflect.Method.invoke(Method.java:498)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)\n"
-				+ "	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\n"
-				+ "	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)\n"
-				+ "	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)\n"
-				+ "	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)\n"
-				+ "	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)\n"
-				+ "	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)\n"
-				+ "	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)\n"
-				+ "	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)\n"
-				+ "	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)\n"
-				+ "	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)\n"
-				+ "	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)\n"
-				+ "	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:367)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:274)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:238)\n"
-				+ "	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:161)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:290)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:242)\n"
-				+ "	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:121)\n";
+				+ "	...\n";
 		testFileResults.add(new TestFileResult(FILE_PATH2, startLine3, startLine3, TestLevel.FAILURE, 0.1F, testName3,
 				message3, details3));
 
-		int startLine4 = 79;
+		int startLine4 = 10;
 		String testName4 = "com.j256.testcheckpublisher.plugin.frameworks.FrameworkTestResultsTest.testToString";
 		String message4 = "succeeded, no errors";
 		testFileResults.add(new TestFileResult(FILE_PATH2, startLine4, startLine4, TestLevel.NOTICE, 0.1F, testName4,
 				message4, null));
-
-		FrameworkTestResults frameworkResults =
-				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, testFileResults);
-
-		String owner = "j256";
-		String repo = "test-check-publisher-maven-plugin";
-		String commitSha = "eb8fae1ccc4411d0139507c26446fc41ac867c71";
-		String formatStr = "noannotate,passdetails";
-		PublishedTestResults results =
-				new PublishedTestResults(owner, repo, commitSha, "secret", formatStr, frameworkResults);
-		return results;
+		return testFileResults;
 	}
 }
