@@ -52,16 +52,6 @@ public class KeyHandling {
 		return readPkcs8PrivateKey(keyDataString.getBytes());
 	}
 
-	private static PrivateKey readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
-		KeyFactory keyFactory = KeyFactory.getInstance("RSA", "SunRsaSign");
-		PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-		try {
-			return keyFactory.generatePrivate(keySpec);
-		} catch (InvalidKeySpecException e) {
-			throw new IllegalArgumentException("Unexpected key format!", e);
-		}
-	}
-
 	private static PrivateKey readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException, IOException {
 		// We can't use Java internal APIs to parse ASN.1 structures, so we build a PKCS#8 key Java can understand
 		int pkcs1Length = pkcs1Bytes.length;
@@ -85,5 +75,15 @@ public class KeyHandling {
 		baos.write(initialHeader);
 		baos.write(pkcs1Bytes);
 		return readPkcs8PrivateKey(baos.toByteArray());
+	}
+
+	private static PrivateKey readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
+		KeyFactory keyFactory = KeyFactory.getInstance("RSA", "SunRsaSign");
+		PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+		try {
+			return keyFactory.generatePrivate(keySpec);
+		} catch (InvalidKeySpecException e) {
+			throw new IllegalArgumentException("Unexpected key format!", e);
+		}
 	}
 }
