@@ -1,2 +1,12 @@
+1.1: 2/16/2021
+	* Added emojis to output.
+	* Lot of iterations on output to make it look reasonable.
+	* Dramatically improved lambda startup with static code.
+	* Whittled down the dependencies.
+	* Added a ton of tests.
+	* Added some docs and file capabilities to the lambda handler.
+	* Added support for format string.
+	* Added better ordering and filtering of results.
+
 0.1: 1/23/2021
 	* Initial release which seems to be working.  Only supports surefire and is a bit brittle.
