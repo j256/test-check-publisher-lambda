@@ -1,6 +1,5 @@
 package com.j256.testcheckpublisher.lambda;
 
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -13,7 +12,6 @@ import java.util.Set;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 
-import com.amazonaws.services.lambda.runtime.LambdaRuntime;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
 import com.j256.testcheckpublisher.lambda.github.GithubClient;
@@ -45,11 +43,12 @@ public class GithubClientIntegrationTest {
 
 		GithubClientImpl.setGithubAppId(appIdStr);
 		CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-		GithubClient githubClient = GithubClientImpl.createClient(httpClient, "j256",
-				"test-check-publisher-maven-plugin", key, LambdaRuntime.getLogger(), "test");
+		String owner = "j256";
+		String repo = "test-check-publisher-maven-plugin";
+		GithubClient githubClient = GithubClientImpl.createClient(httpClient, key, "test");
 
-		assertNotEquals(-1, githubClient.findInstallationId());
-		assertTrue(githubClient.login());
+		assertTrue(githubClient.login(owner, repo));
+		assertTrue(githubClient.login(owner, repo));
 
 		List<TreeFile> treeFiles = new ArrayList<>();
 		treeFiles.add(new TreeFile(FILE_PATH1, "file", "sha"));
@@ -58,12 +57,10 @@ public class GithubClientIntegrationTest {
 		commitPathSet.add(FILE_PATH2);
 
 		PublishedTestResults publishedResults = createResults();
-		CheckRunOutput output = OutputCreatorUtil.createOutput(LambdaRuntime.getLogger(), publishedResults, treeFiles,
-				commitPathSet, "test");
+		CheckRunOutput output = OutputCreatorUtil.createOutput(publishedResults, treeFiles, commitPathSet, "test");
 
 		System.out.println("Making request...");
-		CheckRunRequest request =
-				new CheckRunRequest("Surefire test results", "eb8fae1ccc4411d0139507c26446fc41ac867c71", output);
+		CheckRunRequest request = new CheckRunRequest("Surefire test results", publishedResults.getCommitSha(), output);
 		assertTrue(githubClient.addCheckRun(request));
 		System.out.println("Done...");
 	}
@@ -78,10 +75,10 @@ public class GithubClientIntegrationTest {
 
 		FrameworkTestResults frameworkResults =
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, testFileResults);
-
+		// 1921639320
 		String owner = "j256";
 		String repo = "test-check-publisher-maven-plugin";
-		String commitSha = "eb8fae1ccc4411d0139507c26446fc41ac867c71";
+		String commitSha = "7f4dbff5d4e80a03bd04ee647a0d959f6b9a8e92";
 		String formatStr = "noannotate,passdetails";
 		PublishedTestResults results =
 				new PublishedTestResults(owner, repo, commitSha, "secret", formatStr, frameworkResults);

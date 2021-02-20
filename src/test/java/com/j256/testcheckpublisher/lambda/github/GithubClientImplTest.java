@@ -13,7 +13,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.junit.Test;
 
-import com.amazonaws.services.lambda.runtime.LambdaRuntime;
 import com.j256.testcheckpublisher.lambda.KeyHandlingTest;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
@@ -24,15 +23,28 @@ public class GithubClientImplTest {
 	public void testStuff() throws IOException, GeneralSecurityException {
 		GithubClientImpl.setGithubAppId("id");
 		CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-		GithubClient githubClient = GithubClientImpl.createClient(httpClient, "owner", "repo",
-				KeyHandlingTest.readPrivateKey(), LambdaRuntime.getLogger(), "label");
-		assertEquals(-1, githubClient.findInstallationId());
+		String owner = "owner";
+		String repo = "repo";
+		String sha = "sha";
+		GithubClient githubClient =
+				GithubClientImpl.createClient(httpClient, KeyHandlingTest.readPrivateKey(), "label");
+		assertFalse(githubClient.login(owner, repo));
+		assertNull(githubClient.findInstallationOwner(123));
+		assertEquals(-1, githubClient.getInstallationId());
 		assertEquals(HttpStatus.SC_UNAUTHORIZED, githubClient.getLastStatusLine().getStatusCode());
-		assertFalse(githubClient.login());
-		assertNull(githubClient.requestCommitInfo("sha"));
-		assertNull(githubClient.requestTreeFiles("sha"));
-		CheckRunRequest request = new CheckRunRequest("name", "sha",
+		assertFalse(githubClient.login(owner, repo));
+		assertNull(githubClient.requestCommitInfo(sha));
+		assertNull(githubClient.requestTreeFiles(sha));
+		CheckRunRequest request = new CheckRunRequest("name", sha,
 				new CheckRunOutput("title", "summary", "text", new ArrayList<CheckRunAnnotation>(), 1, 2, 3));
 		assertFalse(githubClient.addCheckRun(request));
+	}
+
+	@Test
+	public void testCoverage() {
+		GithubClientImpl.setGithubAppId(null);
+		assertNull(GithubClientImpl.createClient(null, null, "label"));
+		GithubClientImpl.setGithubAppId("id");
+		assertNull(GithubClientImpl.createClient(null, null, "label"));
 	}
 }

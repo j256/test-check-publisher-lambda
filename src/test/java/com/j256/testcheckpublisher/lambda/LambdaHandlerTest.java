@@ -48,13 +48,27 @@ public class LambdaHandlerTest {
 	private final Gson gson = new GsonBuilder().create();
 
 	@Test
-	public void testStuff() throws IOException {
-		LambdaHandler.setInstallationIdSecret(1234);
+	public void testStuff() throws IOException, GeneralSecurityException {
+
 		LambdaHandler handler = new LambdaHandler();
-		ApiGatewayRequest request = createRequest("/install", "installation_id=20", "body");
+
+		LambdaHandler.setInstallationIdSecret(1234);
+		LambdaHandler.setApplicationKey(KeyHandlingTest.readPrivateKey());
+		GithubClient github = createMock(GithubClient.class);
+
+		int installationId = 20;
+		String owner = "fjpefwjp";
+		expect(github.findInstallationOwner(installationId)).andReturn(owner);
+
+		handler.setTestGithub(github);
+		replay(github);
+
+		ApiGatewayRequest request = createRequest("/install", "installation_id=" + installationId, "body");
 		ApiGatewayResponse response = doRequest(handler, request);
 		assertEquals(HttpStatus.SC_OK, response.getStatusCode());
 		assertTrue(response.getBody(), response.getBody().contains("environment variable"));
+
+		verify(github);
 	}
 
 	@Test
@@ -122,7 +136,7 @@ public class LambdaHandlerTest {
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, testFileResults);
 
 		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
+		String hash = handler.createInstallationHash(installationId);
 
 		String owner = "owner";
 		String repo = "repo";
@@ -132,8 +146,8 @@ public class LambdaHandlerTest {
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
-		expect(github.findInstallationId()).andReturn(installationId);
-		expect(github.login()).andReturn(true);
+		expect(github.login(owner, repo)).andReturn(true);
+		expect(github.getInstallationId()).andReturn(installationId);
 		String treeSha = "446";
 		Commit commit = new Commit(new Tree(treeSha));
 		ChangedFile[] changesFiles = new ChangedFile[] { new ChangedFile(filePath, "added") };
@@ -174,7 +188,7 @@ public class LambdaHandlerTest {
 				new FrameworkTestResults("name", 478, 11, 23, 34, Collections.emptyList());
 
 		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
+		String hash = handler.createInstallationHash(installationId);
 
 		String owner = "owner";
 		String repo = "repo";
@@ -184,8 +198,8 @@ public class LambdaHandlerTest {
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
-		expect(github.findInstallationId()).andReturn(installationId);
-		expect(github.login()).andReturn(true);
+		expect(github.login(owner, repo)).andReturn(true);
+		expect(github.getInstallationId()).andReturn(installationId);
 		expect(github.requestCommitInfo(commitSha)).andReturn(null);
 		expect(github.getLastStatusLine())
 				.andReturn(new BasicStatusLine(HTTP_PROTOCOL_VERSION, HttpStatus.SC_FORBIDDEN, "forbidden"));
@@ -212,7 +226,7 @@ public class LambdaHandlerTest {
 				new FrameworkTestResults("name", 478, 11, 23, 34, Collections.emptyList());
 
 		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
+		String hash = handler.createInstallationHash(installationId);
 
 		String owner = "owner";
 		String repo = "repo";
@@ -222,8 +236,7 @@ public class LambdaHandlerTest {
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
-		expect(github.findInstallationId()).andReturn(installationId);
-		expect(github.login()).andReturn(false);
+		expect(github.login(owner, repo)).andReturn(false);
 		expect(github.getLastStatusLine())
 				.andReturn(new BasicStatusLine(HTTP_PROTOCOL_VERSION, HttpStatus.SC_FORBIDDEN, "forbidden"));
 
@@ -262,7 +275,8 @@ public class LambdaHandlerTest {
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
-		expect(github.findInstallationId()).andReturn(installationId);
+		expect(github.login(owner, repo)).andReturn(true);
+		expect(github.getInstallationId()).andReturn(installationId);
 
 		replay(github);
 
@@ -290,7 +304,7 @@ public class LambdaHandlerTest {
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, Collections.emptyList());
 
 		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
+		String hash = handler.createInstallationHash(installationId);
 
 		String owner = "owner";
 		String repo = "repo";
@@ -300,7 +314,8 @@ public class LambdaHandlerTest {
 
 		ApiGatewayRequest request = createRequest("/results", null, gson.toJson(results));
 
-		expect(github.findInstallationId()).andReturn(-1);
+		expect(github.login(owner, repo)).andReturn(true);
+		expect(github.getInstallationId()).andReturn(-1);
 
 		replay(github);
 
@@ -328,7 +343,7 @@ public class LambdaHandlerTest {
 				new FrameworkTestResults("name", numTests, numFailures, numErrors, numSkipped, Collections.emptyList());
 
 		int installationId = 10;
-		String hash = handler.createInstallationHash(null, installationId);
+		String hash = handler.createInstallationHash(installationId);
 
 		String owner = "owner";
 		String repo = "repo";

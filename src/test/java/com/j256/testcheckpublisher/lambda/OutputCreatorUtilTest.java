@@ -8,7 +8,6 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.amazonaws.services.lambda.runtime.LambdaRuntime;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckLevel;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
@@ -50,8 +49,7 @@ public class OutputCreatorUtilTest {
 		List<TreeFile> treeFiles = new ArrayList<>();
 		treeFiles.add(new TreeFile(filePath, "added", "filesha"));
 
-		CheckRunOutput output = OutputCreatorUtil.createOutput(LambdaRuntime.getLogger(), results, treeFiles,
-				new HashSet<String>(), "test");
+		CheckRunOutput output = OutputCreatorUtil.createOutput(results, treeFiles, new HashSet<String>(), "test");
 		GithubFormat format = GithubFormat.fromString(formatStr);
 
 		String title =
@@ -108,8 +106,7 @@ public class OutputCreatorUtilTest {
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				testName, message, details));
 
-		CheckRunOutput output = OutputCreatorUtil.createOutput(LambdaRuntime.getLogger(), results, treeFiles,
-				new HashSet<String>(), "test");
+		CheckRunOutput output = OutputCreatorUtil.createOutput(results, treeFiles, new HashSet<String>(), "test");
 
 		String title = numTests + " tests, " + numFailures + " failures";
 		assertEquals(title, output.getTitle());
@@ -159,8 +156,7 @@ public class OutputCreatorUtilTest {
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				testName, message, details));
 
-		CheckRunOutput output = OutputCreatorUtil.createOutput(LambdaRuntime.getLogger(), results, treeFiles,
-				new HashSet<String>(), "test");
+		CheckRunOutput output = OutputCreatorUtil.createOutput(results, treeFiles, new HashSet<String>(), "test");
 
 		String text = EmojiUtils.levelToEmoji(testLevel, format) + "&nbsp;&nbsp;" //
 				+ testLevel.getPrettyString() + ": " + testName + ": " + messageEscaped + " " //
@@ -206,8 +202,7 @@ public class OutputCreatorUtilTest {
 		annotations.add(new CheckRunAnnotation(filePath, startLine, startLine, CheckLevel.fromTestLevel(testLevel),
 				testName, message, details));
 
-		CheckRunOutput output = OutputCreatorUtil.createOutput(LambdaRuntime.getLogger(), results, treeFiles,
-				new HashSet<String>(), "test");
+		CheckRunOutput output = OutputCreatorUtil.createOutput(results, treeFiles, new HashSet<String>(), "test");
 
 		String text = EmojiUtils.levelToEmoji(testLevel, format) + "&nbsp;&nbsp;" //
 				+ testLevel.getPrettyString() + ": " + testName + ": " + messageEscaped + " " //

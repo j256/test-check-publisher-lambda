@@ -6,7 +6,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.amazonaws.services.lambda.runtime.LambdaLogger;
+import com.j256.simplelogging.Logger;
+import com.j256.simplelogging.LoggerFactory;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckLevel;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunAnnotation;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest.CheckRunOutput;
@@ -23,11 +24,13 @@ import com.j256.testcheckpublisher.plugin.frameworks.TestFileResult.TestLevel;
  */
 public class OutputCreatorUtil {
 
+	private static final Logger logger = LoggerFactory.getLogger(OutputCreatorUtil.class);
+
 	/**
 	 * Create our output request.
 	 */
-	public static CheckRunOutput createOutput(LambdaLogger logger, PublishedTestResults publishedResults,
-			Collection<TreeFile> treeFiles, Set<String> commitPathSet, String label) {
+	public static CheckRunOutput createOutput(PublishedTestResults publishedResults, Collection<TreeFile> treeFiles,
+			Set<String> commitPathSet, String label) {
 
 		String owner = publishedResults.getOwner();
 		String repository = publishedResults.getRepository();
@@ -42,7 +45,7 @@ public class OutputCreatorUtil {
 		StringBuilder textSb = new StringBuilder();
 
 		if (frameworkResults == null) {
-			logger.log(label + ": ERROR: no framework results\n");
+			logger.error(label + ": no framework results");
 		} else {
 			if (frameworkResults.getFileResults() != null) {
 				Set<String> badPathSet = new HashSet<>();
@@ -53,8 +56,8 @@ public class OutputCreatorUtil {
 					}
 					FileInfo fileInfo = mapFileByPath(nameMap, fileResult.getPath());
 					if (fileInfo == null) {
-						logger.log(label + ": WARN: could not locate file associated with test path: "
-								+ fileResult.getPath() + "\n");
+						logger.warn(
+								label + ": could not locate file associated with test path: " + fileResult.getPath());
 						badPathSet.add(fileResult.getPath());
 					} else {
 						addTestResult(owner, repository, commitSha, output, fileResult, fileInfo, format, textSb);

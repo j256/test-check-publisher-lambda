@@ -25,10 +25,11 @@
 		<gson-version>2.2.2</gson-version>
 		<jjwt-version>0.11.2</jjwt-version>
 		<httpclient-version>4.5.13</httpclient-version>
-		<aws-lambda-java-core>1.1.0</aws-lambda-java-core>
+		<aws-lambda-java-core-version>1.1.0</aws-lambda-java-core-version>
 		<aws-lambda-java-log4j-version>1.0.1</aws-lambda-java-log4j-version>
 		<log4j-slf4j18-impl-version>2.14.0</log4j-slf4j18-impl-version>
 		<test-check-publisher-maven-plugin-version>1.5</test-check-publisher-maven-plugin-version>
+		<simplelogging-version>1.4</simplelogging-version>
 
 		<!-- test dependencies -->
 		<junit-version>4.13.2</junit-version>
@@ -207,7 +208,12 @@
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-lambda-java-core</artifactId>
-			<version>${aws-lambda-java-core}</version>
+			<version>${aws-lambda-java-core-version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.j256.simplelogging</groupId>
+			<artifactId>simplelogging</artifactId>
+			<version>${simplelogging-version}</version>
 		</dependency>
 
 		<!-- test dependencies -->

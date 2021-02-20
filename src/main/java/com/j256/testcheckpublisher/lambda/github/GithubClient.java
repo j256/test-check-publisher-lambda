@@ -16,16 +16,22 @@ import com.j256.testcheckpublisher.lambda.github.TreeInfoResponse.TreeFile;
 public interface GithubClient {
 
 	/**
-	 * Find and return the installation-id for a particular repo or -1 on error.
+	 * Get the owner of an installation or null on error.
+	 * https://docs.github.com/en/rest/reference/apps#get-an-installation-for-the-authenticated-app
 	 */
-	public int findInstallationId() throws IOException;
+	public String findInstallationOwner(int installationId) throws IOException;
 
 	/**
 	 * Login to github meaning get the access token.
 	 * 
 	 * @return true if worked else false.
 	 */
-	public boolean login() throws IOException;
+	public boolean login(String owner, String repository) throws IOException;
+
+	/**
+	 * Return the installation-id that was determined when we logged in.
+	 */
+	public int getInstallationId() throws IOException;
 
 	/**
 	 * Return information about a commit or null on error.

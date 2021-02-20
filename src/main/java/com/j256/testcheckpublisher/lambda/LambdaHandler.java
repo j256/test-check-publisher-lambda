@@ -6,10 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.io.Writer;
-import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -29,11 +26,13 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
 import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
+import com.j256.simplelogging.Level;
+import com.j256.simplelogging.Logger;
+import com.j256.simplelogging.LoggerFactory;
 import com.j256.testcheckpublisher.lambda.ApiGatewayRequest.HttpContext;
 import com.j256.testcheckpublisher.lambda.ApiGatewayRequest.RequestContext;
 import com.j256.testcheckpublisher.lambda.github.CheckRunRequest;
@@ -76,6 +75,7 @@ public class LambdaHandler implements RequestStreamHandler {
 	private static volatile PrivateKey applicationKey;
 	private static volatile long installationIdSecret;
 	private static final Map<String, String> extToContentType = new HashMap<>();
+	private static final Logger logger = LoggerFactory.getLogger(LambdaHandler.class);
 
 	private static CloseableHttpClient httpclient = HttpClients.createDefault();
 	private GithubClient testGithub;
@@ -91,20 +91,22 @@ public class LambdaHandler implements RequestStreamHandler {
 		 * win. This will try to make a request and fail but that part of it should be cheap.
 		 */
 		try {
-			NullLogger nullLogger = new NullLogger();
-			GithubClient github = GithubClientImpl.createClient(httpclient, "init", "init",
-					getApplicationKey(nullLogger), nullLogger, "init");
+			// turn off logging sicne these will fail
+			Logger.setGlobalLogLevel(Level.OFF);
+			GithubClient github = GithubClientImpl.createClient(httpclient, getApplicationKey(), "init");
 			if (github != null) {
-				github.findInstallationId();
+				github.login("init", "init");
 			}
 		} catch (Throwable th) {
 			// ignore it
+		} finally {
+			Logger.setGlobalLogLevel(null);
 		}
+
 	}
 
 	@Override
 	public void handleRequest(InputStream inputStream, OutputStream outputStream, Context context) throws IOException {
-		LambdaLogger logger = context.getLogger();
 
 		// read in request of files, sha, repo, secret
 
@@ -115,14 +117,14 @@ public class LambdaHandler implements RequestStreamHandler {
 		ApiGatewayRequest request = gson.fromJson(reader, ApiGatewayRequest.class);
 		if (request == null) {
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain", "Invalid request");
-			logger.log("ERROR: gateway-request is null\n");
+			logger.error("gateway-request is null");
 			return;
 		}
 
 		String path = request.getRawPath();
 		if (path == null || path.length() == 0) {
 			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found");
-			logRequest(logger, request);
+			logRequest(request);
 			return;
 		}
 
@@ -134,15 +136,15 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		if (path.startsWith(INSTALLATION_PATH_PREFIX)) {
-			handleInstallation(outputStream, logger, gson, request);
+			handleInstallation(outputStream, gson, request);
 		} else if (path.startsWith(FILES_PATH_PREFIX)) {
-			handleFile(outputStream, logger, gson, path);
+			handleFile(outputStream, gson, path);
 		} else if (path.equals("/") || path.startsWith(RESULTS_PATH_PREFIX)) {
-			handleUpload(outputStream, logger, gson, request);
+			handleUpload(outputStream, gson, request);
 		} else {
 			writeResponse(outputStream, gson, HttpStatus.SC_NOT_FOUND, "text/plain", "Path not found: " + path);
 		}
-		logRequest(logger, request);
+		logRequest(request);
 	}
 
 	/**
@@ -163,49 +165,50 @@ public class LambdaHandler implements RequestStreamHandler {
 		this.testGithub = testGithub;
 	}
 
-	private void logRequest(LambdaLogger logger, ApiGatewayRequest request) {
+	private void logRequest(ApiGatewayRequest request) {
 		RequestContext context = request.getRequestContext();
 		if (context == null) {
-			logger.log("ERROR: request: request-context is null\n");
+			logger.error("request: request-context is null");
 			return;
 		}
 		HttpContext httpContext = context.getHttpContext();
 		if (httpContext == null) {
-			logger.log("ERROR: request: http-context is null\n");
+			logger.error("request: http-context is null");
 		} else {
-			logger.log("request: " + httpContext.asString() + "\n");
+			logger.info("request: " + httpContext.asString());
 		}
 	}
 
-	private void handleInstallation(OutputStream outputStream, LambdaLogger logger, Gson gson,
-			ApiGatewayRequest request) throws IOException {
+	private void handleInstallation(OutputStream outputStream, Gson gson, ApiGatewayRequest request)
+			throws IOException {
 
-		StringBuilder html = new StringBuilder();
-		html.append("<html>\n");
-		html.append("<head><title> Test Check Publisher Installation Details </title></head>\n");
-		html.append("<link rel=\"shortcut icon\" href=\"" + FILES_PATH_PREFIX + "/logo.png\" />\n");
-		html.append("<body>\n");
-		html.append("<img src=\"" + FILES_PATH_PREFIX
+		StringBuilder htmlSb = new StringBuilder();
+		htmlSb.append("<html>\n");
+		htmlSb.append("<head><title> Test Check Publisher Installation Details </title></head>\n");
+		htmlSb.append("<link rel=\"shortcut icon\" href=\"" + FILES_PATH_PREFIX + "/logo.png\" />\n");
+		htmlSb.append("<body>\n");
+		htmlSb.append("<img src=\"" + FILES_PATH_PREFIX
 				+ "/logo.png\" height=35 width=35 alt=\"Test check logo\" style=\"float:left; padding-right:5px;\" /> ");
-		html.append("<h1> Test Check Publisher Installation Information </h1>\n");
+		htmlSb.append("<h1> Test Check Publisher Installation Information </h1>\n");
 
-		handleInstallBody(logger, request, html);
+		handleInstallBody(request, htmlSb);
 
-		html.append("<p> For more installation information, please see the ");
-		html.append("<a href=\"" + APP_HOME_PAGE + "\">" + INTEGREATION_NAME + " " + "application page</a>. </p>");
-		html.append("</body>\n");
-		html.append("</html>\n");
+		htmlSb.append("<p> For more installation information, please see the ");
+		htmlSb.append("<a href=\"" + APP_HOME_PAGE + "\">" + INTEGREATION_NAME + " " + "application page</a>. </p>");
+		htmlSb.append("</body>\n");
+		htmlSb.append("</html>\n");
 
-		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/html", html.toString());
+		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/html", htmlSb.toString());
 	}
 
-	private void handleInstallBody(LambdaLogger logger, ApiGatewayRequest request, StringBuilder html) {
+	private void handleInstallBody(ApiGatewayRequest request, StringBuilder htmlSb) {
+
 		// installation_id=1234&setup_action=install
 		Matcher matcher = INSTALLATION_ID_QUERY_PATTERN.matcher(request.getRawQueryString());
 		if (!matcher.matches()) {
-			logger.log("ERROR: bad installation query string: " + request.getRawQueryString() + "\n");
-			html.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
-			html.append("    reinstalling the " + INTEGREATION_NAME
+			logger.error("bad installation query string: " + request.getRawQueryString());
+			htmlSb.append("<p> Sorry.  The request is not in the format that I expected.  Please try deleting and\n");
+			htmlSb.append("    reinstalling the " + INTEGREATION_NAME
 					+ " integration to your repository.  Sorry about that. <p>\n");
 			return;
 		}
@@ -215,31 +218,57 @@ public class LambdaHandler implements RequestStreamHandler {
 		try {
 			installationId = Integer.parseInt(installationIdStr);
 		} catch (NumberFormatException nfe) {
-			logger.log("ERROR: installation-id does not parse: " + installationIdStr + "\n");
-			html.append("<p> Sorry.  The installation-id is not in the format that I expected.  Please try deleting\n");
-			html.append("    and reinstalling the " + INTEGREATION_NAME
+			logger.error("installation-id does not parse: " + installationIdStr);
+			htmlSb.append(
+					"<p> Sorry.  The installation-id is not in the format that I expected.  Please try deleting\n");
+			htmlSb.append("    and reinstalling the " + INTEGREATION_NAME
 					+ " integration to your repository.  Sorry about that. <p>\n");
 			return;
 		}
-		String secret = createInstallationHash(logger, installationId);
+
+		String secret = createInstallationHash(installationId);
 		if (secret == null) {
 			// already logged
-			html.append("<p> There is some sort of error in the server configuration.  Sorry about that. <p>\n");
+			htmlSb.append("<p> There is some sort of error in the server configuration.  Sorry about that. <p>\n");
 			return;
 		}
-		logger.log("installation hash generated for: " + installationId + "\n");
 
-		html.append("<p> Thanks for installing the " + INTEGREATION_NAME
-				+ " integration.  You will need to add the following environment variable\n");
-		html.append("    to your continuous-integration system. <p>\n");
-		html.append("<p><blockquote><code>")
+		PrivateKey applicationKey = getApplicationKey();
+		if (applicationKey == null) {
+			// already logged
+			htmlSb.append("<p> Sorry.  There was a server configuration error.  If the problem\n");
+			htmlSb.append("    persists, please submit a github issue. <p>\n");
+			return;
+		}
+
+		// create our client
+		GithubClient github = getGithubClient(APP_HOME_PAGE, applicationKey);
+		if (github == null) {
+			// already logged
+			return;
+		}
+
+		String owner;
+		try {
+			owner = github.findInstallationOwner(installationId);
+			logger.info(owner + ": installation hash generated for: " + installationId);
+		} catch (IOException ioe) {
+			logger.error(ioe, "problems looking up owner for: " + installationId);
+			// continue with bogus owner
+			owner = "there";
+		}
+
+		htmlSb.append("<p> Hi " + owner + ".  Thanks for installing the " + INTEGREATION_NAME
+				+ " application.  You will need to add the following environment variable\n");
+		htmlSb.append("    to your continuous-integration system. <p>\n");
+		htmlSb.append("<p><blockquote><code>")
 				.append(TestCheckPubMojo.DEFAULT_SECRET_ENV_NAME)
 				.append("=")
 				.append(secret)
 				.append("</code></blockquote></p>");
 	}
 
-	private void handleFile(OutputStream outputStream, LambdaLogger logger, Gson gson, String path) throws IOException {
+	private void handleFile(OutputStream outputStream, Gson gson, String path) throws IOException {
 
 		if (path.length() <= FILE_PATH_PREFIX_LENGTH) {
 			return;
@@ -278,8 +307,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		writeResponse(outputStream, gson, HttpStatus.SC_OK, headerMap, base64, true);
 	}
 
-	private void handleUpload(OutputStream outputStream, LambdaLogger logger, Gson gson, ApiGatewayRequest request)
-			throws IOException {
+	private void handleUpload(OutputStream outputStream, Gson gson, ApiGatewayRequest request) throws IOException {
 
 		String body = request.getBody();
 		if (body == null || body.length() == 0) {
@@ -297,14 +325,15 @@ public class LambdaHandler implements RequestStreamHandler {
 		PublishedTestResults publishedResults;
 		try {
 			publishedResults = gson.fromJson(body, PublishedTestResults.class);
-		} catch (JsonParseException jse) {
+		} catch (JsonParseException jpe) {
+			logger.error(jpe, "json parse error on published test results");
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain",
-					"Expecting published test results");
+					"Invalid JSON posted to the server: " + jpe.getMessage());
 			return;
 		}
 		if (publishedResults == null) {
 			// request sanity check failed
-			logger.log("ERROR: got null results\n");
+			logger.error("got null results");
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain",
 					"Expecting published test results");
 			return;
@@ -312,7 +341,7 @@ public class LambdaHandler implements RequestStreamHandler {
 
 		if (!publishedResults.isMagicCorrect()) {
 			// request sanity check failed
-			logger.log("ERROR: request sanity check failed: " + publishedResults.getMagic() + "\n");
+			logger.error("request sanity check failed: " + publishedResults.getMagic());
 			writeResponse(outputStream, gson, HttpStatus.SC_BAD_REQUEST, "text/plain", "Posted request is invalid");
 			return;
 		}
@@ -325,9 +354,9 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		String label = publishedResults.getOwner() + "/" + repository;
-		logger.log(label + ": uploading @" + publishedResults.getCommitSha() + "\n");
+		logger.info(label + ": uploading @" + publishedResults.getCommitSha());
 
-		PrivateKey applicationKey = getApplicationKey(logger);
+		PrivateKey applicationKey = getApplicationKey();
 		if (applicationKey == null) {
 			// already logged
 			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
@@ -335,43 +364,37 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		GithubClient github;
-		if (testGithub != null) {
-			// for testing purposes
-			github = testGithub;
-		} else {
-			github = GithubClientImpl.createClient(httpclient, publishedResults.getOwner(), repository, applicationKey,
-					logger, label);
-			if (github == null) {
-				// already logged
-				writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
-						"Github client create failure");
-				return;
-			}
+		GithubClient github = getGithubClient(label, applicationKey);
+		if (github == null) {
+			// already logged
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Github client create failure");
+			return;
+		}
+
+		// login which creates our access-token
+		if (!github.login(publishedResults.getOwner(), repository)) {
+			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
+					"Could not login to github for some reason: " + github.getLastStatusLine());
+			return;
 		}
 
 		// lookup our installation-id and verify our secret
-		int installationId = github.findInstallationId();
-		if (installationId <= 0) {
-			logger.log(label + ": ERROR: no installation-id\n");
+		int installationId = github.getInstallationId();
+		if (installationId < 0) {
+			logger.error(label + ": no installation-id");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
 					"Could not find installation for application in repository " + repository
 							+ ".  You should reinstall the " + INTEGREATION_NAME + " integration.");
 			return;
 		}
 
-		if (!validateSecret(logger, publishedResults.getSecret(), installationId)) {
-			logger.log(label + ": ERROR: secret did not validate\n");
+		if (!validateSecret(publishedResults.getSecret(), installationId)) {
+			logger.error(label + ": secret did not validate");
 			writeResponse(outputStream, gson, HttpStatus.SC_FORBIDDEN, "text/plain",
-					"The secret environmental variable value did not validate.  You may need to reinstall " + "the "
-							+ INTEGREATION_NAME + " integration.");
-			return;
-		}
-
-		// login which creates our access-token
-		if (!github.login()) {
-			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
-					"Could not login to github for some reason: " + github.getLastStatusLine());
+					"The secret environmental variable value did not validate.  Check your CI envrionment settings.\n"
+							+ "You may need to reinstall " + "the " + INTEGREATION_NAME
+							+ " integration or check your secret envrionment variable.");
 			return;
 		}
 
@@ -388,7 +411,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		Collection<TreeFile> treeFiles = github.requestTreeFiles(commitInfo.getTreeSha());
 		if (treeFiles == null) {
 			writeResponse(outputStream, gson, HttpStatus.SC_INTERNAL_SERVER_ERROR, "text/plain",
-					"Could not get tree file information for tree sha " + commitInfo.getTreeSha() + ": "
+					"Could not get file information for tree sha " + commitInfo.getTreeSha() + ": "
 							+ github.getLastStatusLine());
 			return;
 		}
@@ -404,8 +427,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 
 		// create the check-run request
-		CheckRunOutput output =
-				OutputCreatorUtil.createOutput(logger, publishedResults, treeFiles, commitPathSet, label);
+		CheckRunOutput output = OutputCreatorUtil.createOutput(publishedResults, treeFiles, commitPathSet, label);
 		CheckRunRequest checkRunRequest =
 				new CheckRunRequest(frameworkResults.getName(), publishedResults.getCommitSha(), output);
 
@@ -416,8 +438,17 @@ public class LambdaHandler implements RequestStreamHandler {
 			return;
 		}
 
-		logger.log(label + ": posted check-run " + output.getTitle() + "\n");
+		logger.info(label + ": posted check-run " + output.getTitle());
 		writeResponse(outputStream, gson, HttpStatus.SC_OK, "text/plain", "Check-run posted to github.");
+	}
+
+	private GithubClient getGithubClient(String label, PrivateKey applicationKey) {
+		if (testGithub != null) {
+			// for testing purposes
+			return testGithub;
+		} else {
+			return GithubClientImpl.createClient(httpclient, applicationKey, label);
+		}
 	}
 
 	private void writeResponse(OutputStream outputStream, Gson gson, int statusCode, String contentType, String message)
@@ -434,13 +465,13 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private boolean validateSecret(LambdaLogger logger, String requestSecret, int installationId) {
-		String digest = createInstallationHash(logger, installationId);
+	private boolean validateSecret(String requestSecret, int installationId) {
+		String digest = createInstallationHash(installationId);
 		return (digest != null && digest.equals(requestSecret));
 	}
 
-	String createInstallationHash(LambdaLogger logger, int installationId) {
-		long secret = getInstallationIdSecret(logger);
+	String createInstallationHash(int installationId) {
+		long secret = getInstallationIdSecret();
 		if (secret <= 0) {
 			// already logged
 			return null;
@@ -451,8 +482,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		try {
 			digest = MessageDigest.getInstance(DIGEST_ALGORITHM);
 		} catch (NoSuchAlgorithmException nsae) {
-			logger.log("ERROR: could not get " + DIGEST_ALGORITHM + " instance\n");
-			logger.log(throwableToString(nsae));
+			logger.error(nsae, "could not get " + DIGEST_ALGORITHM + " instance");
 			return null;
 		}
 
@@ -461,7 +491,7 @@ public class LambdaHandler implements RequestStreamHandler {
 		return bytesToHex(digest.digest());
 	}
 
-	private static PrivateKey getApplicationKey(LambdaLogger logger) throws IOException {
+	private static PrivateKey getApplicationKey() {
 		PrivateKey key = applicationKey;
 		if (key != null) {
 			return key;
@@ -472,7 +502,7 @@ public class LambdaHandler implements RequestStreamHandler {
 			if (key != null) {
 				return key;
 			}
-			key = loadKey(logger);
+			key = loadKey();
 			if (key != null) {
 				applicationKey = key;
 			}
@@ -480,62 +510,42 @@ public class LambdaHandler implements RequestStreamHandler {
 		}
 	}
 
-	private long getInstallationIdSecret(LambdaLogger logger) {
+	private long getInstallationIdSecret() {
 		long secret = installationIdSecret;
 		if (secret != 0) {
 			return secret;
 		}
 		String secretStr = System.getenv(INSTALLTION_ID_SECRET_ENV);
 		if (secretStr == null) {
-			logger.log("ERROR: secret env value is null: " + INSTALLTION_ID_SECRET_ENV + "\n");
+			logger.error("secret env value is null: " + INSTALLTION_ID_SECRET_ENV);
 			return -1;
 		}
 		try {
 			secret = Long.parseLong(secretStr);
 		} catch (NumberFormatException nfe) {
 			// we do't chain the exception to not expose the secret string in the logs
-			logger.log("ERROR: could not parse secret from: " + INSTALLTION_ID_SECRET_ENV + "\n");
+			logger.error("could not parse secret from: " + INSTALLTION_ID_SECRET_ENV);
 			return -1;
 		}
 		installationIdSecret = secret;
 		return secret;
 	}
 
-	private static PrivateKey loadKey(LambdaLogger logger) throws IOException {
+	private static PrivateKey loadKey() {
 		String pem = System.getenv(PUBLISHER_PEM_ENV);
 		if (pem == null) {
-			logger.log("ERROR: publisher secret is null\n");
+			logger.error("publisher secret is null");
 			return null;
 		}
 		try {
 			return KeyHandling.readKey(pem);
-		} catch (GeneralSecurityException gse) {
-			logger.log("ERROR: problems loading key from env\n");
-			logger.log(throwableToString(gse));
+		} catch (Exception gse) {
+			logger.error(gse, "problems loading key from env");
 			return null;
 		}
-	}
-
-	private static String throwableToString(Throwable throwable) {
-		if (throwable == null) {
-			return null;
-		}
-
-		StringWriter writer = new StringWriter();
-		try (PrintWriter printWriter = new PrintWriter(writer);) {
-			throwable.printStackTrace(printWriter);
-		}
-		return writer.toString();
 	}
 
 	private static String bytesToHex(byte[] digest) {
 		return new String(Hex.encodeHex(digest));
-	}
-
-	private static class NullLogger implements LambdaLogger {
-		@Override
-		public void log(String string) {
-			// no-op
-		}
 	}
 }
